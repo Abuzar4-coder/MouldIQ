@@ -1,0 +1,1863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5">
+<title>Mould Management System</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ===== RESET & BASE ===== */
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;}
+body{background:linear-gradient(135deg,#f0f4ff 0%,#e6eeff 100%);min-height:100vh;transition:background .4s,color .4s;overflow-x:hidden;}
+body.dark{background:linear-gradient(135deg,#0f1421 0%,#1a1e2e 100%);color:#e8edf5;}
+body::before,body::after{content:'';position:fixed;width:440px;height:440px;border-radius:50%;filter:blur(90px);z-index:0;pointer-events:none;opacity:.32;transition:opacity .4s;}
+body::before{background:#60a5fa;top:-140px;left:-120px;animation:floatBlob1 19s ease-in-out infinite;}
+body::after{background:#a78bfa;bottom:-150px;right:-110px;animation:floatBlob2 23s ease-in-out infinite;}
+body.dark::before,body.dark::after{opacity:.16;}
+@keyframes floatBlob1{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(70px,50px) scale(1.18);}}
+@keyframes floatBlob2{0%,100%{transform:translate(0,0) scale(1);}50%{transform:translate(-60px,-35px) scale(1.12);}}
+.app{max-width:1500px;margin:0 auto;padding:1rem 1.5rem 4rem;position:relative;z-index:1;}
+
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:rgba(0,0,0,.05);border-radius:10px;}
+::-webkit-scrollbar-thumb{background:#2563eb;border-radius:10px;}
+::-webkit-scrollbar-thumb:hover{background:#1d4ed8;}
+
+.glass{background:rgba(255,255,255,.55);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:24px;box-shadow:0 8px 32px rgba(0,0,0,.06);border:1px solid rgba(255,255,255,.25);transition:all .3s ease;}
+.dark .glass{background:rgba(25,30,50,.6);border-color:rgba(255,255,255,.05);box-shadow:0 8px 32px rgba(0,0,0,.4);}
+
+/* ===== TOP BAR ===== */
+.topbar{display:flex;align-items:center;gap:.8rem;padding:.65rem 1rem;margin-bottom:1.5rem;border-radius:22px;background:rgba(255,255,255,.55);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.2);box-shadow:0 4px 24px rgba(0,0,0,.05);position:sticky;top:.5rem;z-index:60;}
+.dark .topbar{background:rgba(20,25,45,.85);border-color:rgba(255,255,255,.05);}
+.menu-btn{background:linear-gradient(135deg,#2563eb,#3b82f6);border:none;color:#fff;width:42px;height:42px;min-width:42px;border-radius:14px;font-size:1.05rem;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.35s cubic-bezier(.34,1.56,.64,1);box-shadow:0 4px 14px rgba(37,99,235,.32);position:relative;overflow:hidden;}
+.menu-btn i{transition:transform .4s cubic-bezier(.34,1.56,.64,1);}
+.menu-btn:hover{transform:scale(1.07) rotate(-4deg);box-shadow:0 6px 20px rgba(37,99,235,.4);}
+.menu-btn:active{transform:scale(.9);}
+.topbar-title{display:flex;flex-direction:column;line-height:1.15;overflow:hidden;}
+.topbar-title .grad{font-weight:800;font-size:1rem;background:linear-gradient(135deg,#2563eb,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;white-space:nowrap;}
+.dark .topbar-title .grad{background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.topbar-title small{font-weight:600;font-size:.7rem;opacity:.55;white-space:nowrap;}
+.topbar-spacer{flex:1;}
+.topbar .icon-btn{background:none;border:1.5px solid rgba(37,99,235,.25);color:#2563eb;font-size:1rem;cursor:pointer;width:40px;height:40px;min-width:40px;border-radius:14px;display:flex;align-items:center;justify-content:center;transition:.3s cubic-bezier(.34,1.56,.64,1);position:relative;overflow:hidden;}
+.dark .topbar .icon-btn{color:#93bbfc;border-color:rgba(96,165,250,.25);}
+.topbar .icon-btn i{transition:transform .4s cubic-bezier(.34,1.56,.64,1);}
+.topbar .icon-btn:hover{background:rgba(37,99,235,.1);transform:translateY(-2px) scale(1.08);box-shadow:0 6px 16px rgba(37,99,235,.18);}
+.topbar .icon-btn:hover i{transform:rotate(18deg) scale(1.12);}
+.topbar .icon-btn:active{transform:scale(.88);}
+
+/* ===== DRAWER ===== */
+.drawer-overlay{position:fixed;inset:0;background:rgba(10,14,25,.45);backdrop-filter:blur(2px);opacity:0;visibility:hidden;transition:opacity .35s ease;z-index:90;}
+.drawer-overlay.open{opacity:1;visibility:visible;}
+.nav-drawer{position:fixed;top:0;left:0;height:100%;width:280px;max-width:82vw;background:rgba(255,255,255,.97);backdrop-filter:blur(20px);box-shadow:8px 0 50px rgba(0,0,0,.22);transform:translateX(-106%);transition:transform .45s cubic-bezier(.22,1,.36,1);z-index:95;padding:1.6rem 1.2rem;display:flex;flex-direction:column;}
+.dark .nav-drawer{background:rgba(15,19,34,.98);}
+.nav-drawer.open{transform:translateX(0);}
+.drawer-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.8rem;}
+.drawer-head .brand{font-weight:800;font-size:1.1rem;display:flex;align-items:center;gap:.5rem;}
+.drawer-head .brand i{color:#2563eb;}
+.dark .drawer-head .brand i{color:#60a5fa;}
+.drawer-close{background:rgba(0,0,0,.05);border:none;width:34px;height:34px;border-radius:10px;cursor:pointer;font-size:1rem;color:inherit;transition:.3s;}
+.dark .drawer-close{background:rgba(255,255,255,.08);}
+.drawer-close:hover{background:rgba(220,38,38,.15);color:#dc2626;transform:rotate(90deg);}
+.drawer-link{display:flex;align-items:center;gap:.9rem;padding:.85rem 1rem;border-radius:16px;text-decoration:none;color:#1e293b;font-weight:600;font-size:.94rem;margin-bottom:.4rem;cursor:pointer;transition:all .3s cubic-bezier(.34,1.56,.64,1);position:relative;overflow:hidden;}
+.dark .drawer-link{color:#dbe3f0;}
+.drawer-link i{width:20px;text-align:center;font-size:1.05rem;opacity:.7;transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .25s;}
+.drawer-link:hover{background:rgba(37,99,235,.07);transform:translateX(6px);}
+.dark .drawer-link:hover{background:rgba(59,130,246,.12);}
+.drawer-link:hover i{transform:scale(1.2) rotate(-6deg);opacity:1;}
+.drawer-link:active{transform:translateX(6px) scale(.96);}
+.drawer-link.active{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 6px 18px rgba(37,99,235,.35);}
+.dark .drawer-link.active{background:linear-gradient(135deg,#3b82f6,#60a5fa);color:#0b1120;}
+.drawer-link.active i{opacity:1;transform:scale(1.1);}
+.drawer-foot{margin-top:auto;font-size:.7rem;opacity:.45;text-align:center;padding-top:1rem;}
+
+/* ===== RIPPLE ===== */
+.ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.55);transform:scale(0);animation:rippleAnim .65s ease-out;pointer-events:none;}
+.dark .ripple{background:rgba(255,255,255,.28);}
+@keyframes rippleAnim{to{transform:scale(3);opacity:0;}}
+
+/* ===== PAGES ===== */
+.page{display:none;animation:fadeSlide .45s cubic-bezier(.22,1,.36,1);}
+.page.active{display:block;}
+@keyframes fadeSlide{from{opacity:0;transform:translateY(18px) scale(.985);}to{opacity:1;transform:translateY(0) scale(1);}}
+
+.page-title{font-size:1.5rem;font-weight:700;margin-bottom:1.2rem;display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;}
+.page-title i{color:#2563eb;font-size:1.6rem;}
+.dark .page-title i{color:#60a5fa;}
+.page-subtitle{font-size:.85rem;opacity:.65;margin:-0.6rem 0 1.2rem;}
+
+/* ===== STAT CARDS ===== */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin:1.2rem 0;}
+.stat-card{padding:1.2rem 1.3rem;border-radius:20px;background:rgba(255,255,255,.4);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.2);transition:all .35s cubic-bezier(.22,1,.36,1);position:relative;overflow:hidden;}
+.dark .stat-card{background:rgba(25,30,50,.4);border-color:rgba(255,255,255,.05);}
+.stat-card:hover{transform:translateY(-5px);box-shadow:0 12px 30px rgba(37,99,235,.12);}
+.stat-card h3{font-weight:500;font-size:.78rem;opacity:.7;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:.4rem;}
+.stat-card h3 i{font-size:.85rem;opacity:.85;}
+.stat-card .value{font-size:1.8rem;font-weight:700;margin:.3rem 0 0;background:linear-gradient(135deg,#2563eb,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.dark .stat-card .value{background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.stat-card.warn .value{background:linear-gradient(135deg,#dc2626,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+
+.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.3rem;margin-top:1.3rem;}
+
+/* ===== TABLES ===== */
+.table-wrap{overflow-x:auto;border-radius:20px;background:rgba(255,255,255,.25);backdrop-filter:blur(4px);padding:.25rem;border:1px solid rgba(255,255,255,.1);}
+.dark .table-wrap{background:rgba(20,25,40,.25);}
+table{width:100%;border-collapse:collapse;font-size:.86rem;}
+th{text-align:left;padding:.7rem 1rem;background:rgba(37,99,235,.06);font-weight:600;font-size:.74rem;text-transform:uppercase;letter-spacing:.3px;color:#475569;white-space:nowrap;}
+.dark th{color:#94a3b8;background:rgba(59,130,246,.08);}
+td{padding:.6rem 1rem;border-bottom:1px solid rgba(0,0,0,.04);}
+.dark td{border-bottom:1px solid rgba(255,255,255,.04);}
+tr:hover td{background:rgba(37,99,235,.04);}
+.dark tr:hover td{background:rgba(59,130,246,.06);}
+th.sortable{cursor:pointer;user-select:none;}
+th.sortable:hover{color:#2563eb;}
+.dark th.sortable:hover{color:#60a5fa;}
+th.sortable .fa-sort,th.sortable .fa-sort-up,th.sortable .fa-sort-down{margin-left:.3rem;opacity:.5;font-size:.7rem;}
+
+/* ===== FILTER / SEARCH BOX ===== */
+.search-box{display:flex;flex-wrap:wrap;gap:.8rem;align-items:center;margin:1rem 0 1.2rem;}
+.search-box input,.search-box select{padding:.7rem 1.3rem;border-radius:40px;border:1.5px solid rgba(0,0,0,.06);background:rgba(255,255,255,.5);backdrop-filter:blur(4px);font-size:.92rem;flex:1 1 200px;transition:all .3s ease;outline:none;color:#1e293b;}
+.dark .search-box input,.dark .search-box select{background:rgba(30,36,50,.6);border-color:rgba(255,255,255,.06);color:#e8edf5;}
+.search-box input:focus{border-color:#2563eb;box-shadow:0 0 0 4px rgba(37,99,235,.1);}
+.dark .search-box input:focus{border-color:#60a5fa;box-shadow:0 0 0 4px rgba(59,130,246,.15);}
+.search-box select{flex:0 1 150px;cursor:pointer;}
+
+.chip-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-bottom:1rem;}
+.chip{padding:.4rem 1rem;border-radius:30px;font-size:.8rem;font-weight:600;cursor:pointer;background:rgba(37,99,235,.08);color:#2563eb;border:1.5px solid transparent;transition:all .25s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;position:relative;overflow:hidden;}
+.dark .chip{background:rgba(59,130,246,.12);color:#93bbfc;}
+.chip:hover{background:rgba(37,99,235,.15);transform:translateY(-1px);}
+.chip:active{transform:scale(.93);}
+.chip.active{background:linear-gradient(135deg,#2563eb,#3b82f6);color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.3);transform:scale(1.04);animation:chipPop .4s cubic-bezier(.34,1.56,.64,1);}
+@keyframes chipPop{0%{transform:scale(.82);}60%{transform:scale(1.1);}100%{transform:scale(1.04);}}
+
+/* ===== BUTTONS ===== */
+.btn{background:linear-gradient(135deg,#2563eb,#3b82f6,#2563eb);background-size:220% auto;background-position:0% 0%;border:none;color:#fff;padding:.62rem 1.5rem;border-radius:40px;font-weight:600;cursor:pointer;transition:transform .3s cubic-bezier(.34,1.56,.64,1),box-shadow .3s ease,background-position .6s ease;display:inline-flex;align-items:center;gap:.55rem;font-size:.88rem;box-shadow:0 4px 12px rgba(37,99,235,.2);position:relative;overflow:hidden;}
+.btn::after{content:'';position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(120deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-20deg);transition:left .65s ease;pointer-events:none;}
+.btn:hover{transform:translateY(-3px) scale(1.025);box-shadow:0 10px 26px rgba(37,99,235,.35);background-position:100% 0%;}
+.btn:hover::after{left:135%;}
+.btn:active{transform:scale(.93) translateY(0);transition-duration:.12s;}
+.btn i{transition:transform .35s cubic-bezier(.34,1.56,.64,1);}
+.btn:hover i{transform:scale(1.18) rotate(-8deg);}
+.btn-outline{background:transparent;border:1.5px solid #2563eb;color:#2563eb;box-shadow:none;}
+.dark .btn-outline{border-color:#60a5fa;color:#93bbfc;}
+.btn-outline:hover{background:rgba(37,99,235,.08);box-shadow:0 6px 18px rgba(37,99,235,.18);}
+.dark .btn-outline:hover{background:rgba(59,130,246,.12);}
+.btn-success{background:linear-gradient(135deg,#16a34a,#22c55e,#16a34a);background-size:220% auto;box-shadow:0 4px 12px rgba(22,163,74,.3);animation:pulseGlow 2.4s ease-in-out infinite;}
+.btn-success:hover{box-shadow:0 10px 26px rgba(22,163,74,.45);animation:none;}
+@keyframes pulseGlow{0%,100%{box-shadow:0 4px 12px rgba(22,163,74,.3);}50%{box-shadow:0 4px 22px rgba(22,163,74,.55);}}
+.btn-sm{padding:.32rem .9rem;font-size:.76rem;}
+.btn-danger{background:linear-gradient(135deg,#dc2626,#ef4444,#dc2626);background-size:220% auto;box-shadow:0 4px 12px rgba(220,38,38,.3);}
+.btn-danger:hover{box-shadow:0 10px 26px rgba(220,38,38,.4);}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none;animation:none;}
+
+/* ===== SUGGESTIONS ===== */
+.suggestion-list{background:rgba(255,255,255,.95);backdrop-filter:blur(12px);border-radius:18px;max-height:260px;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.12);margin-top:-0.6rem;margin-bottom:1rem;padding:.3rem;border:1px solid rgba(255,255,255,.2);}
+.dark .suggestion-list{background:rgba(25,30,50,.95);border-color:rgba(255,255,255,.05);}
+.suggestion-item{padding:.6rem 1.1rem;cursor:pointer;border-radius:12px;transition:all .2s ease;font-size:.85rem;display:flex;justify-content:space-between;align-items:center;gap:.6rem;}
+.suggestion-item:hover{background:rgba(37,99,235,.08);}
+.dark .suggestion-item:hover{background:rgba(59,130,246,.12);}
+.suggestion-item .highlight{font-weight:700;color:#2563eb;}
+.dark .suggestion-item .highlight{color:#60a5fa;}
+
+/* ===== RESULT CARDS ===== */
+.result-card{padding:1.1rem 1.4rem;margin:.55rem 0;border-radius:16px;background:rgba(255,255,255,.35);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.12);display:flex;flex-wrap:wrap;gap:.4rem 1.4rem;align-items:center;cursor:pointer;transition:.25s;animation:cardIn .4s cubic-bezier(.22,1,.36,1);}
+.result-card:hover{background:rgba(37,99,235,.08);transform:translateX(3px) scale(1.01);box-shadow:0 6px 20px rgba(0,0,0,.06);}
+@keyframes cardIn{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:translateY(0);}}
+.dark .result-card{background:rgba(25,30,50,.35);}
+.dark .result-card:hover{background:rgba(59,130,246,.1);}
+.result-card .label{font-weight:500;opacity:.6;font-size:.72rem;text-transform:uppercase;letter-spacing:.3px;}
+.result-card .value{font-weight:600;font-size:.96rem;}
+.badge{padding:.18rem .8rem;border-radius:30px;font-size:.7rem;font-weight:700;text-transform:uppercase;background:rgba(37,99,235,.12);color:#2563eb;display:inline-block;}
+.dark .badge{background:rgba(59,130,246,.2);color:#93bbfc;}
+.badge.hall2{background:rgba(124,58,237,.12);color:#7c3aed;}
+.dark .badge.hall2{background:rgba(167,139,250,.2);color:#c4b5fd;}
+.badge.single{background:rgba(245,158,11,.14);color:#b45309;}
+.dark .badge.single{background:rgba(245,158,11,.2);color:#fbbf24;}
+.badge.empty{background:rgba(220,38,38,.12);color:#dc2626;}
+.dark .badge.empty{background:rgba(239,68,68,.2);color:#f87171;}
+
+/* ===== FORMS ===== */
+.update-input{padding:.5rem 1.1rem;border-radius:40px;border:1.5px solid rgba(0,0,0,.06);flex:1;min-width:130px;background:rgba(255,255,255,.4);backdrop-filter:blur(4px);transition:.3s;outline:none;font-size:.92rem;color:#1e293b;}
+.dark .update-input{background:rgba(30,36,50,.4);border-color:rgba(255,255,255,.06);color:#e8edf5;}
+.update-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+.update-label{font-weight:600;min-width:80px;font-size:.85rem;opacity:.8;}
+.form-row{display:flex;flex-wrap:wrap;gap:.7rem;align-items:center;padding:.4rem 0;}
+.form-section-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;opacity:.55;margin:1rem 0 .3rem;}
+
+.rej-input{width:62px;padding:.4rem .5rem;border-radius:30px;border:1.5px solid rgba(0,0,0,.06);text-align:center;background:rgba(255,255,255,.3);backdrop-filter:blur(4px);transition:.3s;outline:none;font-size:.9rem;font-weight:600;color:#1e293b;}
+.dark .rej-input{background:rgba(30,36,50,.4);border-color:rgba(255,255,255,.06);color:#e8edf5;}
+.rej-input:focus{border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1);}
+
+.report-btn-group{display:flex;flex-wrap:wrap;gap:.55rem;margin:1rem 0 1.3rem;}
+
+.flex{display:flex;flex-wrap:wrap;gap:.9rem;align-items:center;}
+.mt-2{margin-top:1.6rem;}
+.mb-1{margin-bottom:.7rem;}
+.text-muted{opacity:.6;font-size:.82rem;}
+.gap-1{gap:.5rem;}
+
+.top-item{padding:.5rem .8rem;border-bottom:1px solid rgba(0,0,0,.04);display:flex;justify-content:space-between;align-items:center;}
+.dark .top-item{border-bottom:1px solid rgba(255,255,255,.04);}
+.top-item .rank{font-weight:700;color:#2563eb;font-size:.88rem;}
+.dark .top-item .rank{color:#60a5fa;}
+.top-item .count{font-weight:700;font-size:.96rem;}
+
+.empty-state{padding:2rem;text-align:center;opacity:.5;font-style:italic;}
+
+/* ===== LAYOUT CARDS (mobile press cards) ===== */
+.press-cards{display:none;flex-direction:column;gap:.7rem;}
+.press-card{padding:1rem 1.2rem;border-radius:18px;background:rgba(255,255,255,.4);border:1px solid rgba(255,255,255,.15);cursor:pointer;transition:.25s cubic-bezier(.34,1.56,.64,1);animation:cardIn .4s cubic-bezier(.22,1,.36,1);}
+.dark .press-card{background:rgba(25,30,50,.4);}
+.press-card:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.08);}
+.press-card:active{transform:scale(.98);}
+.press-card .pc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;}
+.press-card .pc-press{font-size:1.05rem;font-weight:700;}
+.press-card .pc-row{display:flex;justify-content:space-between;font-size:.84rem;padding:.15rem 0;opacity:.85;}
+.press-card .pc-row b{opacity:1;}
+
+/* ===== MODAL ===== */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,20,35,.55);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;z-index:100;padding:1rem;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .3s ease,visibility .3s ease;}
+.modal-overlay.active{opacity:1;visibility:visible;pointer-events:auto;}
+.modal-box{background:rgba(255,255,255,.97);border-radius:22px;padding:1.6rem;max-width:480px;width:100%;max-height:85vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25);transform:scale(.9) translateY(12px);opacity:0;transition:transform .35s cubic-bezier(.22,1,.36,1),opacity .3s ease;}
+.modal-overlay.active .modal-box{transform:scale(1) translateY(0);opacity:1;}
+.dark .modal-box{background:rgba(22,27,45,.98);color:#e8edf5;}
+.modal-box h3{margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;font-size:1.1rem;}
+.modal-close{background:none;border:none;font-size:1.2rem;cursor:pointer;opacity:.6;color:inherit;}
+.modal-close:hover{opacity:1;}
+
+/* ===== MISC ===== */
+.toast{position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);background:#1e293b;color:#fff;padding:.8rem 1.6rem;border-radius:40px;font-size:.88rem;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.3);z-index:200;opacity:0;transition:opacity .3s,transform .3s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-8px);}
+.toast.error{background:#dc2626;}
+.toast.success{background:#16a34a;}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width:768px){
+  .app{padding:.8rem 1rem 4rem;}
+  .topbar{padding:.5rem .7rem;border-radius:18px;gap:.5rem;}
+  .topbar-title .grad{font-size:.88rem;}
+  .topbar-title small{font-size:.62rem;}
+  .menu-btn,.topbar .icon-btn{width:38px;height:38px;min-width:38px;font-size:.92rem;}
+  .stat-card .value{font-size:1.4rem;}
+  .page-title{font-size:1.25rem;}
+  .card-grid{grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.7rem;}
+  .grid-2{grid-template-columns:1fr;}
+  .search-box input,.search-box select{padding:.6rem 1rem;font-size:.85rem;flex:1 1 100%;}
+  .search-box select{flex:1 1 100%;}
+  .btn{padding:.5rem 1.1rem;font-size:.8rem;}
+  .result-card{flex-direction:column;align-items:flex-start;gap:.3rem;}
+  .form-row{flex-direction:column;align-items:stretch;}
+  .update-label{min-width:auto;}
+  .report-btn-group .btn{flex:1 1 auto;font-size:.74rem;padding:.4rem .8rem;}
+  th,td{padding:.5rem .7rem;font-size:.78rem;}
+  .table-wrap.responsive table{display:none;}
+  .table-wrap.responsive + .press-cards{display:flex;}
+}
+@media (max-width:480px){
+  .topbar-title small{display:none;}
+  .stat-card{padding:.9rem;}
+  .stat-card .value{font-size:1.15rem;}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="drawer-overlay" id="drawerOverlay"></div>
+  <nav class="nav-drawer" id="navDrawer">
+    <div class="drawer-head">
+      <span class="brand"><i class="fas fa-industry"></i> MMS</span>
+      <button class="drawer-close" id="drawerClose"><i class="fas fa-xmark"></i></button>
+    </div>
+    <a class="drawer-link active" data-page="dashboard"><i class="fas fa-chart-pie"></i> Dashboard</a>
+    <a class="drawer-link" data-page="layout"><i class="fas fa-th"></i> Layout</a>
+    <a class="drawer-link" data-page="search"><i class="fas fa-search"></i> Search</a>
+    <a class="drawer-link" data-page="update"><i class="fas fa-pen"></i> Update</a>
+    <a class="drawer-link" data-page="rejection"><i class="fas fa-times-circle"></i> Rejection</a>
+    <a class="drawer-link" data-page="reports"><i class="fas fa-file-alt"></i> Reports</a>
+    <div class="drawer-foot">Developed By Zari Tech</div>
+  </nav>
+
+  <div class="topbar">
+    <button class="menu-btn" id="menuBtn" title="Menu"><i class="fas fa-bars"></i></button>
+    <div class="topbar-title"><span class="grad">Mould Management</span><small id="topbarSubtitle">Dashboard</small></div>
+    <div class="topbar-spacer"></div>
+    <button class="icon-btn" id="themeToggle" title="Toggle Theme"><i class="fas fa-moon"></i></button>
+    <button class="icon-btn" id="importBtn" title="Import Excel"><i class="fas fa-upload"></i></button>
+  </div>
+
+
+  <!-- ===== DASHBOARD ===== -->
+  <div id="page-dashboard" class="page active">
+    <div class="page-title"><i class="fas fa-chart-pie"></i> Dashboard</div>
+    <div class="page-subtitle" id="lastUpdatedNote"></div>
+    <div class="card-grid" id="dashStats"></div>
+    <div class="grid-2">
+      <div class="glass" style="padding:1.4rem;">
+        <h3 style="margin-bottom:.7rem;"><i class="fas fa-ruler-combined" style="color:#16a34a;"></i> Top Rejected Sizes</h3>
+        <div id="topSizes"></div>
+      </div>
+      <div class="glass" style="padding:1.4rem;">
+        <h3 style="margin-bottom:.7rem;"><i class="fas fa-trophy" style="color:#f59e0b;"></i> Top Rejected Moulds</h3>
+        <div id="topMoulds"></div>
+      </div>
+      <div class="glass" style="padding:1.4rem;">
+        <h3 style="margin-bottom:.7rem;"><i class="fas fa-fire" style="color:#ef4444;"></i> Top Rejected Presses</h3>
+        <div id="topPresses"></div>
+      </div>
+    </div>
+    <div class="glass" style="padding:1.4rem;margin-top:1.3rem;">
+      <h3 style="margin-bottom:.7rem;"><i class="fas fa-clock-rotate-left" style="color:#2563eb;"></i> Recent Updates</h3>
+      <div id="recentUpdates"></div>
+    </div>
+  </div>
+
+  <!-- ===== LAYOUT BROWSER ===== -->
+  <div id="page-layout" class="page">
+    <div class="page-title"><i class="fas fa-th"></i> Mould Layout</div>
+    <div class="page-subtitle">Browse every press and mould across both halls. Tap a row to view full details.</div>
+    <div class="chip-row" id="hallChips"></div>
+    <div class="chip-row" id="lineChips"></div>
+    <div class="search-box">
+      <input type="text" id="layoutFilterInput" placeholder="🔍 Filter by press, mould or size...">
+      <select id="layoutSizeFilter"><option value="">All Sizes</option></select>
+    </div>
+    <div class="text-muted mb-1" id="layoutCount"></div>
+    <div class="table-wrap responsive">
+      <table id="layoutTable">
+        <thead><tr>
+          <th class="sortable" data-sort="h">Hall</th>
+          <th class="sortable" data-sort="l">Line</th>
+          <th class="sortable" data-sort="pn">Press #</th>
+          <th>Type</th>
+          <th>Size (Upper)</th>
+          <th>Mould (Upper)</th>
+          <th>Size (Lower)</th>
+          <th>Mould (Lower)</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="press-cards" id="layoutCards"></div>
+  </div>
+
+  <!-- ===== SEARCH ===== -->
+  <div id="page-search" class="page">
+    <div class="page-title"><i class="fas fa-search"></i> Mould &amp; Press Search</div>
+    <div class="page-subtitle">Search across both halls. Press and mould numbers can repeat between halls — results always show Hall + Line so you can tell them apart.</div>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="🔍 Search by press, mould or size...">
+      <select id="searchHall">
+        <option value="">All Halls</option>
+        <option value="Hall 1">Hall 1</option>
+        <option value="Hall 2">Hall 2</option>
+      </select>
+      <select id="searchSizeFilter"><option value="">All Sizes</option></select>
+      <select id="searchType">
+        <option value="all">Search Everything</option>
+        <option value="press">Press Number</option>
+        <option value="mould">Mould Number</option>
+        <option value="size">Mould Size</option>
+      </select>
+      <button class="btn" id="searchBtn"><i class="fas fa-arrow-right"></i> Search</button>
+    </div>
+    <div id="searchSuggestions" class="suggestion-list" style="display:none;"></div>
+    <div id="searchResult"></div>
+    <div id="searchStats" class="text-muted" style="margin-top:.5rem;"></div>
+  </div>
+
+  <!-- ===== UPDATE ===== -->
+  <div id="page-update" class="page">
+    <div class="page-title"><i class="fas fa-pen"></i> Mould Update</div>
+    <div class="page-subtitle">Find a press by Hall + Press number, then edit its size/mould values.</div>
+    <div class="search-box">
+      <select id="updateHallInput" style="flex:0 1 130px;">
+        <option value="Hall 1">Hall 1</option>
+        <option value="Hall 2">Hall 2</option>
+      </select>
+      <input type="text" id="updatePressInput" placeholder="Enter Press Number...">
+      <button class="btn" id="loadPressBtn"><i class="fas fa-arrow-right"></i> Load</button>
+    </div>
+    <div id="updateSuggestions" class="suggestion-list" style="display:none;"></div>
+    <div id="updateForm" class="glass" style="padding:1.7rem;display:none;">
+      <div class="form-row">
+        <span class="update-label">Press:</span>
+        <strong id="uPress" style="font-size:1.1rem;color:#2563eb;"></strong>
+        <span id="uTypeBadge"></span>
+      </div>
+      <div class="form-section-label" id="uUpperLabel">Upper</div>
+      <div class="form-row">
+        <span class="update-label">Size:</span>
+        <input id="uSizeU" class="update-input" placeholder="Enter size...">
+        <span class="update-label">Mould:</span>
+        <input id="uMouldU" class="update-input" placeholder="Enter mould number...">
+      </div>
+      <div id="lowerBlock">
+        <div class="form-section-label">Lower</div>
+        <div class="form-row">
+          <span class="update-label">Size:</span>
+          <input id="uSizeL" class="update-input" placeholder="Enter size...">
+          <span class="update-label">Mould:</span>
+          <input id="uMouldL" class="update-input" placeholder="Enter mould number...">
+        </div>
+      </div>
+      <div class="flex mt-2">
+        <button class="btn btn-success" id="saveUpdateBtn"><i class="fas fa-save"></i> Save Update</button>
+        <button class="btn btn-outline" id="resetPressBtn"><i class="fas fa-rotate-left"></i> Reset This Press</button>
+      </div>
+    </div>
+    <div class="flex mt-2">
+      <button class="btn btn-outline" id="downloadLayoutBtn"><i class="fas fa-file-excel"></i> Download Layout</button>
+      <button class="btn btn-outline" id="downloadHistoryBtn"><i class="fas fa-history"></i> Download History</button>
+      <button class="btn btn-outline" id="backupDataBtn"><i class="fas fa-download"></i> Backup Data</button>
+      <button class="btn btn-outline" id="restoreDataBtn"><i class="fas fa-upload"></i> Restore Backup</button>
+      <button class="btn btn-danger" id="resetAllBtn"><i class="fas fa-triangle-exclamation"></i> Reset Entire Layout</button>
+    </div>
+    <div class="text-muted" style="margin-top:.6rem;"><i class="fas fa-circle-check" style="color:#16a34a;"></i> All data is saved automatically on this device — no internet needed. Use "Backup Data" for a safety copy you can restore later or move to another device.</div>
+    <div class="table-wrap mt-2">
+      <h4 style="padding:.8rem 1.1rem 0;font-size:.95rem;"><i class="fas fa-clock-rotate-left"></i> Update History</h4>
+      <table id="historyTable">
+        <thead><tr><th>Date</th><th>Time</th><th>Hall</th><th>Press</th><th>Field</th><th>Old Value</th><th>New Value</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== REJECTION ===== -->
+  <div id="page-rejection" class="page">
+    <div class="page-title"><i class="fas fa-times-circle"></i> Rejection Tracking</div>
+    <div class="page-subtitle">Log mould rejections by shift, press-wise or mould-wise.</div>
+    <div class="search-box">
+      <select id="rejHallInput" style="flex:0 1 130px;">
+        <option value="">Any Hall</option>
+        <option value="Hall 1">Hall 1</option>
+        <option value="Hall 2">Hall 2</option>
+      </select>
+      <input type="text" id="rejSearch" placeholder="Enter Press or Mould number...">
+      <button class="btn" id="loadRejBtn"><i class="fas fa-arrow-right"></i> Load</button>
+    </div>
+    <div id="rejPicker" class="suggestion-list" style="display:none;"></div>
+    <div id="rejInfo" class="glass" style="padding:1.4rem;display:none;"></div>
+    <div id="rejForm" style="display:none;margin-top:1rem;">
+      <div class="form-row">
+        <span class="update-label">Shift:</span>
+        <select id="rejShift" class="update-input" style="max-width:140px;">
+          <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+        </select>
+        <span class="update-label">Date:</span>
+        <input id="rejDate" type="date" class="update-input" style="max-width:170px;">
+      </div>
+      <div class="form-row mt-2" id="rejQtyRow">
+        <span class="update-label" id="rejUpperLabel">Upper Reject Qty:</span>
+        <input id="rejUpperQty" class="update-input" type="number" min="0" value="0" style="max-width:120px;">
+        <span class="update-label" id="rejLowerLabel">Lower Reject Qty:</span>
+        <input id="rejLowerQty" class="update-input" type="number" min="0" value="0" style="max-width:120px;">
+      </div>
+      <button class="btn btn-success" id="saveRejBtn" style="margin-top:1rem;"><i class="fas fa-save"></i> Save Rejection</button>
+    </div>
+    <div class="mt-2 flex">
+      <button class="btn btn-outline" id="downloadRejReportBtn"><i class="fas fa-file-excel"></i> Download Rejection Report</button>
+    </div>
+    <div class="table-wrap mt-2">
+      <h4 style="padding:.8rem 1.1rem 0;font-size:.95rem;"><i class="fas fa-list"></i> Recent Rejection Entries</h4>
+      <table id="rejLogTable">
+        <thead><tr><th>Date</th><th>Shift</th><th>Hall</th><th>Press</th><th>Upper Mould</th><th>Lower Mould</th><th>Upper Rej</th><th>Lower Rej</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ===== REPORTS ===== -->
+  <div id="page-reports" class="page">
+    <div class="page-title"><i class="fas fa-file-alt"></i> Reports</div>
+    <div class="report-btn-group">
+      <button class="btn btn-outline" data-report="press"><i class="fas fa-print"></i> Press Wise</button>
+      <button class="btn btn-outline" data-report="mould"><i class="fas fa-cube"></i> Mould Wise</button>
+      <button class="btn btn-outline" data-report="size"><i class="fas fa-ruler-combined"></i> Size Wise</button>
+      <button class="btn btn-outline" data-report="hall"><i class="fas fa-warehouse"></i> Hall Wise</button>
+      <button class="btn btn-outline" data-report="line"><i class="fas fa-grip-lines"></i> Line Wise</button>
+      <button class="btn btn-outline" data-report="date"><i class="fas fa-calendar-day"></i> Date Wise</button>
+      <button class="btn btn-outline" data-report="daily"><i class="fas fa-calendar"></i> Daily Summary</button>
+      <button class="btn btn-outline" data-report="monthly"><i class="fas fa-calendar-alt"></i> Monthly Summary</button>
+      <button class="btn btn-outline" data-report="dupes"><i class="fas fa-clone"></i> Duplicate Mould Check</button>
+    </div>
+    <div id="reportOutput"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <h3><span id="modalTitle">Details</span><button class="modal-close" id="modalClose"><i class="fas fa-xmark"></i></button></h3>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// SEED DATA — full layout extracted from "Layout (2)" sheet
+// (the live, visible sheet in the uploaded workbook, dated 17-06-2026)
+// 195 presses total: 96 in Hall 1, 99 in Hall 2.
+// Press numbers repeat across halls, so every press is uniquely
+// identified by (hall, press number) — never press number alone.
+// 'single' presses run one mould only; 'double' presses run an
+// upper and a lower mould (which can even differ in size).
+// ============================================================
+const PRESS_DATA=[
+{h:'Hall 1',l:1,p:'1',t:'single',su:'4.50.12',mu:'8',sl:'',ml:''},
+{h:'Hall 1',l:1,p:'2',t:'single',su:'6.15.13',mu:'7',sl:'',ml:''},
+{h:'Hall 1',l:1,p:'3',t:'single',su:'5.00.6.00.12',mu:'3',sl:'',ml:''},
+{h:'Hall 1',l:1,p:'4',t:'single',su:'6.15.13',mu:'70',sl:'',ml:''},
+{h:'Hall 1',l:1,p:'5',t:'single',su:'500/600.12',mu:'2',sl:'',ml:''},
+{h:'Hall 1',l:1,p:'6',t:'single',su:'6.15.13',mu:'9',sl:'',ml:''},
+{h:'Hall 1',l:1,p:'100',t:'double',su:'2.75.314',mu:'01',sl:'2.75.314',ml:'010'},
+{h:'Hall 1',l:1,p:'101',t:'double',su:'2.75.314',mu:'3',sl:'2.75.314',ml:'020'},
+{h:'Hall 1',l:1,p:'102',t:'double',su:'2.75.314',mu:'02',sl:'2.75.314',ml:'2'},
+{h:'Hall 1',l:1,p:'103',t:'double',su:'2.75.314',mu:'4',sl:'2.75.314',ml:'1'},
+{h:'Hall 1',l:1,p:'104',t:'double',su:'2.50.18',mu:'41',sl:'2.50.18',ml:'33'},
+{h:'Hall 1',l:1,p:'105',t:'double',su:'2.50.18',mu:'17',sl:'2.50.18',ml:'36'},
+{h:'Hall 1',l:1,p:'106',t:'double',su:'2.50.18',mu:'25',sl:'2.50.18',ml:'54'},
+{h:'Hall 1',l:1,p:'107',t:'double',su:'2.50.18',mu:'7',sl:'2.50.18',ml:'42'},
+{h:'Hall 1',l:1,p:'108',t:'double',su:'60.100.17',mu:'1',sl:'60.100.17',ml:'179'},
+{h:'Hall 1',l:1,p:'109',t:'double',su:'60.100.17',mu:'256',sl:'60.100.17',ml:'184'},
+{h:'Hall 1',l:2,p:'7',t:'single',su:'5.00.12',mu:'2',sl:'',ml:''},
+{h:'Hall 1',l:2,p:'8',t:'single',su:'5.00.12',mu:'2',sl:'',ml:''},
+{h:'Hall 1',l:2,p:'9',t:'single',su:'5.00.12',mu:'10',sl:'',ml:''},
+{h:'Hall 1',l:2,p:'10',t:'single',su:'5.00.12',mu:'12',sl:'',ml:''},
+{h:'Hall 1',l:2,p:'11',t:'single',su:'5.00.12',mu:'15',sl:'',ml:''},
+{h:'Hall 1',l:2,p:'12',t:'single',su:'5.00.12',mu:'5',sl:'',ml:''},
+{h:'Hall 1',l:2,p:'110',t:'double',su:'2.50.18',mu:'24',sl:'2.50.18',ml:'41'},
+{h:'Hall 1',l:2,p:'111',t:'double',su:'2.50.18',mu:'53',sl:'2.50.18',ml:'47'},
+{h:'Hall 1',l:2,p:'112',t:'double',su:'2.50.18',mu:'23',sl:'2.50.18',ml:'43'},
+{h:'Hall 1',l:2,p:'113',t:'double',su:'2.50.18',mu:'19',sl:'2.50.18',ml:'15'},
+{h:'Hall 1',l:2,p:'114',t:'double',su:'2.50.18',mu:'49',sl:'2.50.18',ml:'50'},
+{h:'Hall 1',l:2,p:'115',t:'double',su:'2.50.18',mu:'5',sl:'2.50.18',ml:'8'},
+{h:'Hall 1',l:2,p:'116',t:'double',su:'2.50.18',mu:'52',sl:'2.50.18',ml:'48'},
+{h:'Hall 1',l:2,p:'117',t:'double',su:'2.50.18',mu:'052',sl:'2.50.18',ml:'26'},
+{h:'Hall 1',l:2,p:'118',t:'double',su:'2.50.18',mu:'44',sl:'2.50.18',ml:'28'},
+{h:'Hall 1',l:2,p:'119',t:'double',su:'2.50.18 AHL',mu:'3',sl:'2.50.18 AHL',ml:'2'},
+{h:'Hall 1',l:3,p:'13',t:'single',su:'4.50.12',mu:'3',sl:'',ml:''},
+{h:'Hall 1',l:3,p:'14',t:'single',su:'4.50.12',mu:'8',sl:'',ml:''},
+{h:'Hall 1',l:3,p:'15',t:'single',su:'4.50.12',mu:'91',sl:'',ml:''},
+{h:'Hall 1',l:3,p:'16',t:'single',su:'4.50.12',mu:'20',sl:'',ml:''},
+{h:'Hall 1',l:3,p:'17',t:'single',su:'4.50.12',mu:'1',sl:'',ml:''},
+{h:'Hall 1',l:3,p:'18',t:'single',su:'4.50.12',mu:'15',sl:'',ml:''},
+{h:'Hall 1',l:3,p:'120',t:'double',su:'2.25.17',mu:'30',sl:'2.25.17',ml:'71'},
+{h:'Hall 1',l:3,p:'121',t:'double',su:'2.25.17',mu:'31',sl:'2.25.17',ml:'6'},
+{h:'Hall 1',l:3,p:'122',t:'double',su:'2.25.17',mu:'13',sl:'2.25.17',ml:'121'},
+{h:'Hall 1',l:3,p:'123',t:'double',su:'2.25.17',mu:'34',sl:'2.25.17',ml:'28'},
+{h:'Hall 1',l:3,p:'124',t:'double',su:'2.25.17',mu:'75',sl:'2.25.17',ml:'09'},
+{h:'Hall 1',l:3,p:'125',t:'double',su:'2.25.17',mu:'4',sl:'2.25.17',ml:'29'},
+{h:'Hall 1',l:3,p:'126',t:'double',su:'2.25.17',mu:'01',sl:'2.25.17',ml:'16'},
+{h:'Hall 1',l:3,p:'127',t:'double',su:'2.25.17',mu:'15',sl:'2.25.17',ml:'27'},
+{h:'Hall 1',l:3,p:'128',t:'double',su:'2.50.17',mu:'21',sl:'2.50.17',ml:'035'},
+{h:'Hall 1',l:3,p:'129',t:'double',su:'2.50.17',mu:'247',sl:'2.50.17',ml:'55'},
+{h:'Hall 1',l:4,p:'19',t:'single',su:'5.00.12',mu:'16',sl:'',ml:''},
+{h:'Hall 1',l:4,p:'20',t:'single',su:'5.00.12',mu:'14',sl:'',ml:''},
+{h:'Hall 1',l:4,p:'21',t:'single',su:'5.00.12',mu:'6',sl:'',ml:''},
+{h:'Hall 1',l:4,p:'22',t:'single',su:'5.00.12',mu:'10',sl:'',ml:''},
+{h:'Hall 1',l:4,p:'23',t:'single',su:'5.00.12',mu:'17',sl:'',ml:''},
+{h:'Hall 1',l:4,p:'24',t:'single',su:'5.00.12',mu:'3',sl:'',ml:''},
+{h:'Hall 1',l:4,p:'130',t:'double',su:'90.90.18',mu:'20',sl:'90.90.18',ml:'16'},
+{h:'Hall 1',l:4,p:'131',t:'double',su:'90.90.18',mu:'10',sl:'90.90.18',ml:'17'},
+{h:'Hall 1',l:4,p:'132',t:'double',su:'90.90.18',mu:'12',sl:'90.90.18',ml:'15'},
+{h:'Hall 1',l:4,p:'133',t:'double',su:'90.90.18',mu:'7',sl:'90.90.18',ml:'05'},
+{h:'Hall 1',l:4,p:'134',t:'double',su:'90.90.18',mu:'13',sl:'90.90.18',ml:'18'},
+{h:'Hall 1',l:4,p:'135',t:'double',su:'90.90.18',mu:'6',sl:'90.90.18',ml:'5'},
+{h:'Hall 1',l:4,p:'136',t:'double',su:'2.50.17',mu:'276',sl:'2.50.17',ml:'182'},
+{h:'Hall 1',l:4,p:'137',t:'double',su:'2.50.17',mu:'4011',sl:'2.50.17',ml:'60'},
+{h:'Hall 1',l:4,p:'138',t:'double',su:'2.50.17',mu:'671',sl:'2.50.17',ml:'028'},
+{h:'Hall 1',l:4,p:'139',t:'double',su:'2.75.321',mu:'2',sl:'2.50.17',ml:'72'},
+{h:'Hall 1',l:5,p:'140',t:'double',su:'300.17',mu:'11',sl:'300.17',ml:'24'},
+{h:'Hall 1',l:5,p:'141',t:'double',su:'300-17',mu:'12',sl:'300-17',ml:'49'},
+{h:'Hall 1',l:5,p:'142',t:'double',su:'300.17',mu:'13',sl:'300.17',ml:'03'},
+{h:'Hall 1',l:5,p:'143',t:'double',su:'300.17',mu:'35',sl:'300.17',ml:'39'},
+{h:'Hall 1',l:5,p:'144',t:'double',su:'3.00.17',mu:'34',sl:'3.00.17',ml:'27'},
+{h:'Hall 1',l:5,p:'145',t:'double',su:'3.50.410.18',mu:'2',sl:'3.50.410.18',ml:'1'},
+{h:'Hall 1',l:5,p:'146',t:'double',su:'300.17',mu:'7',sl:'300.17',ml:'04'},
+{h:'Hall 1',l:5,p:'147',t:'double',su:'300.17',mu:'40',sl:'300.17',ml:'58'},
+{h:'Hall 1',l:5,p:'148',t:'double',su:'300.17 AHL',mu:'1',sl:'300.17 AHL',ml:'4'},
+{h:'Hall 1',l:5,p:'149',t:'double',su:'300.17 AHL',mu:'3',sl:'300.17 AHL',ml:'2'},
+{h:'Hall 1',l:5,p:'150',t:'double',su:'2.50.17',mu:'040',sl:'2.50.17',ml:'023'},
+{h:'Hall 1',l:5,p:'151',t:'double',su:'2.50.275.17',mu:'2',sl:'2.50.275.17',ml:'1'},
+{h:'Hall 1',l:5,p:'152',t:'double',su:'2.50.17',mu:'186',sl:'2.50.17',ml:'091'},
+{h:'Hall 1',l:5,p:'153',t:'double',su:'90.90.19',mu:'2',sl:'90.90.19',ml:'1'},
+{h:'Hall 1',l:5,p:'154',t:'double',su:'2.75.18',mu:'15',sl:'2.75.18',ml:'17'},
+{h:'Hall 1',l:5,p:'155',t:'double',su:'2.75.18',mu:'16',sl:'2.75.18',ml:'7777'},
+{h:'Hall 1',l:6,p:'156',t:'double',su:'300.17',mu:'9',sl:'2.50.17',ml:'02'},
+{h:'Hall 1',l:6,p:'157',t:'double',su:'2.50.17',mu:'74',sl:'2.50.17',ml:'84'},
+{h:'Hall 1',l:6,p:'158',t:'double',su:'300.17',mu:'43',sl:'300.17',ml:'29'},
+{h:'Hall 1',l:6,p:'159',t:'double',su:'300.17',mu:'10',sl:'300.17',ml:'14'},
+{h:'Hall 1',l:6,p:'160',t:'double',su:'3.00.17',mu:'141',sl:'3.00.17',ml:'11'},
+{h:'Hall 1',l:6,p:'161',t:'double',su:'300.18',mu:'01',sl:'300.18',ml:'02'},
+{h:'Hall 1',l:6,p:'162',t:'double',su:'3.00.17',mu:'65',sl:'3.00.17',ml:'64'},
+{h:'Hall 1',l:6,p:'163',t:'double',su:'3.00.17',mu:'45',sl:'3.00.17',ml:'47'},
+{h:'Hall 1',l:6,p:'164',t:'double',su:'3.00.16',mu:'1',sl:'3.00.16',ml:'44'},
+{h:'Hall 1',l:6,p:'165',t:'double',su:'3.00.17',mu:'36',sl:'3.00.17',ml:'38'},
+{h:'Hall 1',l:6,p:'166',t:'double',su:'4.004.617',mu:'2',sl:'4.004.617',ml:'1'},
+{h:'Hall 1',l:6,p:'167',t:'double',su:'4.004.617',mu:'1',sl:'4.004.617',ml:'2'},
+{h:'Hall 1',l:6,p:'168',t:'double',su:'2.50.18',mu:'4',sl:'2.50.18',ml:'01'},
+{h:'Hall 1',l:6,p:'169',t:'double',su:'2.50.18',mu:'06',sl:'2.50.18',ml:'46'},
+{h:'Hall 1',l:6,p:'170',t:'double',su:'2.50.17',mu:'190',sl:'2.50.17',ml:'512'},
+{h:'Hall 1',l:6,p:'171',t:'double',su:'2.50.17',mu:'102',sl:'2.50.17',ml:'180'},
+{h:'Hall 2',l:1,p:'1',t:'double',su:'2.50.17 AHL',mu:'4',sl:'2.50.17 AHL',ml:'21'},
+{h:'Hall 2',l:1,p:'2',t:'double',su:'2.50.17 AHL',mu:'16',sl:'2.50.17 AHL',ml:'20'},
+{h:'Hall 2',l:1,p:'3',t:'double',su:'2.50.17 AHL',mu:'81',sl:'2.50.17 AHL',ml:'714'},
+{h:'Hall 2',l:1,p:'4',t:'double',su:'2.50.17 AHL',mu:'13',sl:'2.50.17 AHL',ml:'212'},
+{h:'Hall 2',l:1,p:'5',t:'double',su:'2.50.17 AHL',mu:'91',sl:'2.50.17 AHL',ml:'5'},
+{h:'Hall 2',l:1,p:'6',t:'double',su:'2.50.17 AHL',mu:'8',sl:'2.50.17 AHL',ml:'2'},
+{h:'Hall 2',l:1,p:'7',t:'double',su:'2.50.17 AHL',mu:'7',sl:'2.50.17 AHL',ml:'22'},
+{h:'Hall 2',l:1,p:'8',t:'double',su:'2.50.17 AHL',mu:'04',sl:'2.50.17 AHL',ml:'3'},
+{h:'Hall 2',l:1,p:'9',t:'double',su:'2.50.17 AHL',mu:'1',sl:'2.50.17 AHL',ml:'160'},
+{h:'Hall 2',l:1,p:'10',t:'double',su:'2.50.17',mu:'111',sl:'2.50.17',ml:'261'},
+{h:'Hall 2',l:1,p:'11',t:'double',su:'2.50.17',mu:'500',sl:'2.50.17',ml:'1122'},
+{h:'Hall 2',l:1,p:'12',t:'double',su:'2.50.17',mu:'540',sl:'2.50.17',ml:'541'},
+{h:'Hall 2',l:1,p:'13',t:'double',su:'2.50.17',mu:'0254',sl:'2.50.17',ml:'101'},
+{h:'Hall 2',l:1,p:'14',t:'double',su:'2.50.17',mu:'17',sl:'2.50.17',ml:'150'},
+{h:'Hall 2',l:1,p:'15',t:'double',su:'2.50.17',mu:'120',sl:'2.50.17',ml:'254'},
+{h:'Hall 2',l:1,p:'16',t:'double',su:'2.50.17',mu:'45',sl:'2.50.17',ml:'177'},
+{h:'Hall 2',l:1,p:'17',t:'double',su:'2.50.17',mu:'539',sl:'2.50.17',ml:'25'},
+{h:'Hall 2',l:1,p:'18',t:'double',su:'2.50.17',mu:'248',sl:'2.50.17',ml:'104'},
+{h:'Hall 2',l:2,p:'19',t:'double',su:'2.50.17',mu:'0258',sl:'2.50.17',ml:'005'},
+{h:'Hall 2',l:2,p:'20',t:'double',su:'2.50.17',mu:'144',sl:'2.50.17',ml:'156'},
+{h:'Hall 2',l:2,p:'21',t:'double',su:'2.50.17',mu:'138',sl:'2.50.17',ml:'26'},
+{h:'Hall 2',l:2,p:'22',t:'double',su:'2.50.17',mu:'100',sl:'2.50.17',ml:'143'},
+{h:'Hall 2',l:2,p:'23',t:'double',su:'2.50.17 AHL',mu:'518',sl:'2.50.17 AHL',ml:'118'},
+{h:'Hall 2',l:2,p:'24',t:'double',su:'2.50.17 AHL',mu:'6',sl:'2.50.17 AHL',ml:'1'},
+{h:'Hall 2',l:2,p:'25',t:'double',su:'2.50.17',mu:'036',sl:'2.50.17',ml:'84'},
+{h:'Hall 2',l:2,p:'26',t:'double',su:'2.50.17',mu:'135',sl:'2.50.17',ml:'325'},
+{h:'Hall 2',l:2,p:'27',t:'double',su:'2.50.17',mu:'100',sl:'2.50.17',ml:'103'},
+{h:'Hall 2',l:2,p:'28',t:'double',su:'2.50.17',mu:'2248',sl:'2.50.17',ml:'185'},
+{h:'Hall 2',l:2,p:'29',t:'double',su:'2.50.17',mu:'168',sl:'2.50.17',ml:'264'},
+{h:'Hall 2',l:2,p:'30',t:'double',su:'2.50.17',mu:'139',sl:'2.50.17',ml:'149'},
+{h:'Hall 2',l:2,p:'31',t:'double',su:'2.50.17',mu:'183',sl:'2.50.17',ml:'163'},
+{h:'Hall 2',l:2,p:'32',t:'double',su:'2.50.17',mu:'83',sl:'2.50.17',ml:'241'},
+{h:'Hall 2',l:2,p:'33',t:'double',su:'2.50.17',mu:'142',sl:'2.50.17',ml:'052'},
+{h:'Hall 2',l:2,p:'34',t:'double',su:'2.50.17',mu:'035',sl:'2.50.17',ml:'044'},
+{h:'Hall 2',l:2,p:'35',t:'double',su:'2.50.17',mu:'110',sl:'2.50.17',ml:'97'},
+{h:'Hall 2',l:2,p:'36',t:'double',su:'2.50.17',mu:'39',sl:'2.50.17',ml:'0194'},
+{h:'Hall 2',l:3,p:'37',t:'double',su:'2.50.17',mu:'116',sl:'2.50.17',ml:'239'},
+{h:'Hall 2',l:3,p:'38',t:'double',su:'2.50.17',mu:'87',sl:'2.50.17',ml:'1'},
+{h:'Hall 2',l:3,p:'39',t:'double',su:'2.50.17',mu:'24',sl:'2.50.17',ml:'31'},
+{h:'Hall 2',l:3,p:'40',t:'double',su:'2.50.17',mu:'109',sl:'2.50.17',ml:'13'},
+{h:'Hall 2',l:3,p:'41',t:'double',su:'2.50.17',mu:'98',sl:'2.50.17',ml:'191'},
+{h:'Hall 2',l:3,p:'42',t:'double',su:'2.50.17',mu:'06',sl:'2.50.17',ml:'246'},
+{h:'Hall 2',l:3,p:'43',t:'double',su:'2.50.17',mu:'040',sl:'2.50.17',ml:'038'},
+{h:'Hall 2',l:3,p:'44',t:'double',su:'2.50.17',mu:'170',sl:'2.50.17',ml:'092'},
+{h:'Hall 2',l:3,p:'45',t:'double',su:'2.50.17',mu:'0786',sl:'2.50.17',ml:'18'},
+{h:'Hall 2',l:3,p:'46',t:'double',su:'2.50.17',mu:'165',sl:'2.50.17',ml:'136'},
+{h:'Hall 2',l:3,p:'47',t:'double',su:'2.50.17',mu:'66',sl:'2.50.17',ml:'2447'},
+{h:'Hall 2',l:3,p:'48',t:'double',su:'2.50.17',mu:'245',sl:'2.50.17',ml:'92'},
+{h:'Hall 2',l:3,p:'49',t:'double',su:'2.50.17',mu:'119',sl:'2.50.17',ml:'386'},
+{h:'Hall 2',l:3,p:'50',t:'double',su:'2.50.17',mu:'11121',sl:'2.50.17',ml:'171'},
+{h:'Hall 2',l:3,p:'51',t:'double',su:'2.50.17',mu:'57',sl:'2.50.17',ml:'137'},
+{h:'Hall 2',l:3,p:'52',t:'double',su:'2.50.17',mu:'041',sl:'2.50.17',ml:'280'},
+{h:'Hall 2',l:3,p:'53',t:'double',su:'2.50.17',mu:'1120',sl:'2.50.17',ml:'144'},
+{h:'Hall 2',l:3,p:'54',t:'double',su:'2.50.17',mu:'89',sl:'2.50.17',ml:'166'},
+{h:'Hall 2',l:4,p:'55',t:'double',su:'2.50.17',mu:'180',sl:'2.50.17',ml:'85'},
+{h:'Hall 2',l:4,p:'56',t:'double',su:'2.50.17',mu:'257',sl:'2.50.17',ml:'365'},
+{h:'Hall 2',l:4,p:'57',t:'double',su:'2.50.17',mu:'043',sl:'2.50.17',ml:'263'},
+{h:'Hall 2',l:4,p:'58',t:'double',su:'2.50.17',mu:'260',sl:'2.50.17',ml:'0404'},
+{h:'Hall 2',l:4,p:'59',t:'double',su:'2.50.17',mu:'281',sl:'2.50.17',ml:'13'},
+{h:'Hall 2',l:4,p:'60',t:'double',su:'2.50.17',mu:'134',sl:'2.50.17',ml:'033'},
+{h:'Hall 2',l:4,p:'61',t:'double',su:'300.17',mu:'32',sl:'300.17',ml:'8'},
+{h:'Hall 2',l:4,p:'62',t:'double',su:'300.17',mu:'5',sl:'300.17',ml:'2'},
+{h:'Hall 2',l:4,p:'63',t:'double',su:'300.17',mu:'28',sl:'300.17',ml:'85'},
+{h:'Hall 2',l:4,p:'64',t:'double',su:'300.17',mu:'67',sl:'300.17',ml:'4'},
+{h:'Hall 2',l:4,p:'65',t:'double',su:'2.50.17',mu:'40',sl:'2.50.17',ml:'253'},
+{h:'Hall 2',l:4,p:'66',t:'double',su:'2.50.17',mu:'4440',sl:'2.00.19',ml:'0'},
+{h:'Hall 2',l:4,p:'67',t:'double',su:'2.50.17',mu:'244',sl:'2.00.18',ml:'0'},
+{h:'Hall 2',l:4,p:'68',t:'double',su:'2.50.17',mu:'106',sl:'2.50.17',ml:'115'},
+{h:'Hall 2',l:4,p:'69',t:'double',su:'2.50.17',mu:'514',sl:'2.50.17',ml:'94'},
+{h:'Hall 2',l:4,p:'70',t:'double',su:'2.50.17',mu:'266',sl:'2.50.17',ml:'227'},
+{h:'Hall 2',l:4,p:'71',t:'double',su:'2.50.17',mu:'79',sl:'2.50.17',ml:'011'},
+{h:'Hall 2',l:4,p:'72',t:'double',su:'2.50.17',mu:'228',sl:'2.50.17',ml:'0195'},
+{h:'Hall 2',l:5,p:'73',t:'double',su:'1.35.10',mu:'10',sl:'4.50.12',ml:'02'},
+{h:'Hall 2',l:5,p:'74',t:'double',su:'1.35.10',mu:'115',sl:'4.50.12',ml:'28'},
+{h:'Hall 2',l:5,p:'75',t:'double',su:'1.35.10',mu:'04',sl:'4.50.12',ml:'1'},
+{h:'Hall 2',l:5,p:'76',t:'double',su:'1.35.10',mu:'17',sl:'4.50.12',ml:'03'},
+{h:'Hall 2',l:5,p:'77',t:'double',su:'1.35.10',mu:'18',sl:'4.50.12',ml:'55'},
+{h:'Hall 2',l:5,p:'78',t:'double',su:'1.35.10',mu:'00',sl:'4.50.12',ml:'13'},
+{h:'Hall 2',l:5,p:'79',t:'double',su:'1.35.10',mu:'31',sl:'1.35.10',ml:'9'},
+{h:'Hall 2',l:5,p:'80',t:'double',su:'4.00.8',mu:'21',sl:'1.35.10',ml:'1'},
+{h:'Hall 2',l:5,p:'81',t:'double',su:'2.50.17',mu:'83',sl:'2.50.17',ml:'192'},
+{h:'Hall 2',l:5,p:'82',t:'double',su:'2.50.17',mu:'247',sl:'2.50.17',ml:'026'},
+{h:'Hall 2',l:5,p:'83',t:'double',su:'2.50.17',mu:'024',sl:'2.50.17',ml:'1139'},
+{h:'Hall 2',l:5,p:'84',t:'double',su:'2.50.17',mu:'267',sl:'2.50.17',ml:'042'},
+{h:'Hall 2',l:5,p:'85',t:'double',su:'2.50.17',mu:'95',sl:'2.50.17',ml:'154'},
+{h:'Hall 2',l:5,p:'86',t:'double',su:'2.50.17',mu:'147',sl:'2.50.17',ml:'170'},
+{h:'Hall 2',l:5,p:'87',t:'double',su:'2.50.17',mu:'103',sl:'2.50.17',ml:'032'},
+{h:'Hall 2',l:6,p:'88',t:'double',su:'400.8',mu:'24',sl:'400.8',ml:'51'},
+{h:'Hall 2',l:6,p:'89',t:'double',su:'400.8',mu:'36',sl:'400.8',ml:'38'},
+{h:'Hall 2',l:6,p:'90',t:'double',su:'400.8',mu:'42',sl:'400.8',ml:'25'},
+{h:'Hall 2',l:6,p:'91',t:'double',su:'400.8',mu:'21',sl:'400.8',ml:'05'},
+{h:'Hall 2',l:6,p:'92',t:'double',su:'1.35.10',mu:'11',sl:'1.35.10',ml:'5'},
+{h:'Hall 2',l:6,p:'93',t:'double',su:'1.35.10',mu:'011',sl:'1.35.10',ml:'13'},
+{h:'Hall 2',l:6,p:'94',t:'double',su:'1.35.10',mu:'9',sl:'1.35.10',ml:'7'},
+{h:'Hall 2',l:6,p:'95',t:'double',su:'1.35.10',mu:'8',sl:'1.35.10',ml:'5'},
+{h:'Hall 2',l:6,p:'96',t:'double',su:'1.35.10',mu:'2',sl:'1.35.10',ml:'20'},
+{h:'Hall 2',l:6,p:'97',t:'double',su:'1.35.10',mu:'03',sl:'1.35.10',ml:'41'},
+{h:'Hall 2',l:6,p:'98',t:'double',su:'1.35.10',mu:'20',sl:'1.35.10',ml:'9'},
+{h:'Hall 2',l:6,p:'99',t:'double',su:'1.35.10',mu:'10',sl:'1.35.10',ml:'19'}
+];
+const DATA_SOURCE_DATE = '17-06-2026';
+
+// ============================================================
+// STORAGE KEYS — versioned (v2) so old/incomplete cached data
+// from the previous version of this app never gets reloaded.
+// ============================================================
+const KEY_MASTER='mm2_master', KEY_HISTORY='mm2_history', KEY_REJECTION='mm2_rejection', KEY_THEME='mm2_theme';
+
+let masterData=[];
+let updateHistory=[];
+let rejectionData=[];
+
+function seedMaster(){
+  return PRESS_DATA.map(d=>({
+    id: d.h+'__'+d.p,
+    hall:d.h, line:d.l, press:d.p, type:d.t,
+    sizeU:d.su, mouldU:d.mu, sizeL:d.sl, mouldL:d.ml
+  }));
+}
+
+function loadFromStorage(){
+  try{
+    const m=localStorage.getItem(KEY_MASTER);
+    masterData = m? JSON.parse(m) : seedMaster();
+    if(!m) saveMaster();
+  }catch(e){ masterData=seedMaster(); }
+  try{
+    const h=localStorage.getItem(KEY_HISTORY);
+    updateHistory = h? JSON.parse(h) : [];
+  }catch(e){ updateHistory=[]; }
+  try{
+    const r=localStorage.getItem(KEY_REJECTION);
+    rejectionData = r? JSON.parse(r) : [];
+  }catch(e){ rejectionData=[]; }
+  let neededIdFix=false;
+  rejectionData.forEach(entry=>{
+    if(!entry.id){ entry.id=Date.now()+'-'+Math.random().toString(36).slice(2,8); neededIdFix=true; }
+  });
+  if(neededIdFix) saveRejection();
+}
+function saveMaster(){ localStorage.setItem(KEY_MASTER, JSON.stringify(masterData)); }
+function saveHistory(){ localStorage.setItem(KEY_HISTORY, JSON.stringify(updateHistory)); }
+function saveRejection(){ localStorage.setItem(KEY_REJECTION, JSON.stringify(rejectionData)); }
+
+// ============================================================
+// LOOKUP HELPERS
+// ============================================================
+function getById(id){ return masterData.find(d=>d.id===id); }
+function getByHallPress(hall,press){
+  const p=String(press).trim();
+  return masterData.find(d=>d.hall===hall && String(d.press).trim()===p);
+}
+function findByPressAnyHall(press){
+  const p=String(press).trim();
+  return masterData.filter(d=>String(d.press).trim()===p);
+}
+function findByMould(mould){
+  const m=String(mould).trim();
+  if(!m) return [];
+  return masterData.filter(d=> String(d.mouldU).trim()===m || (d.type==='double' && String(d.mouldL).trim()===m));
+}
+function searchAll(query, hallFilter){
+  const q=String(query).trim().toLowerCase();
+  if(!q) return [];
+  return masterData.filter(d=>{
+    if(hallFilter && d.hall!==hallFilter) return false;
+    return String(d.press).toLowerCase().includes(q) ||
+      String(d.sizeU).toLowerCase().includes(q) ||
+      String(d.sizeL).toLowerCase().includes(q) ||
+      String(d.mouldU).toLowerCase().includes(q) ||
+      (d.type==='double' && String(d.mouldL).toLowerCase().includes(q));
+  });
+}
+function getDistinctSizes(hallFilter, lineFilter){
+  const set=new Set();
+  masterData.forEach(d=>{
+    if(hallFilter && d.hall!==hallFilter) return;
+    if(lineFilter && String(d.line)!==String(lineFilter)) return;
+    if(d.sizeU) set.add(d.sizeU);
+    if(d.type==='double' && d.sizeL) set.add(d.sizeL);
+  });
+  return [...set].sort((a,b)=>a.localeCompare(b, undefined, {numeric:true}));
+}
+function populateSizeSelect(selectEl, sizes, keepValue){
+  const current = keepValue ? selectEl.value : '';
+  selectEl.innerHTML='<option value="">All Sizes</option>' + sizes.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  if(current && sizes.includes(current)) selectEl.value=current;
+}
+function escapeHtml(s){
+  return String(s===undefined||s===null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function hallBadgeClass(h){ return h==='Hall 2' ? 'badge hall2' : 'badge'; }
+
+// ============================================================
+// COUNT-UP ANIMATION (for dashboard stat values)
+// ============================================================
+function animateCount(el, target){
+  const duration=700;
+  const start=performance.now();
+  function step(now){
+    const p=Math.min((now-start)/duration, 1);
+    const eased=1-Math.pow(1-p,3);
+    el.textContent=Math.round(eased*target);
+    if(p<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+// ============================================================
+// RIPPLE EFFECT (delegated to buttons/chips/drawer links)
+// ============================================================
+document.addEventListener('click', function(e){
+  const el=e.target.closest('.btn, .chip, .drawer-link, .menu-btn, .icon-btn');
+  if(!el) return;
+  const rect=el.getBoundingClientRect();
+  const size=Math.max(rect.width, rect.height)*1.4;
+  const ripple=document.createElement('span');
+  ripple.className='ripple';
+  ripple.style.width=ripple.style.height=size+'px';
+  ripple.style.left=(e.clientX-rect.left-size/2)+'px';
+  ripple.style.top=(e.clientY-rect.top-size/2)+'px';
+  el.appendChild(ripple);
+  setTimeout(()=>ripple.remove(), 650);
+});
+
+// ============================================================
+// TOAST
+// ============================================================
+let toastTimer=null;
+function toast(msg, kind){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='toast show'+(kind?(' '+kind):'');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{ t.classList.remove('show'); }, 2400);
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function openModal(title, html){
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalBody').innerHTML=html;
+  document.getElementById('modalOverlay').classList.add('active');
+}
+function closeModal(){ document.getElementById('modalOverlay').classList.remove('active'); }
+document.getElementById('modalClose').addEventListener('click', closeModal);
+document.getElementById('modalOverlay').addEventListener('click', function(e){ if(e.target===this) closeModal(); });
+
+function pressDetailHtml(d){
+  const typeBadge = d.type==='single' ? '<span class="badge single">Single</span>' : '<span class="badge">Double</span>';
+  let html = `<div class="flex mb-1">${typeBadge}<span class="${hallBadgeClass(d.hall)}">${d.hall}</span><span class="badge">Line ${d.line}</span></div>`;
+  html += `<div class="form-row"><span class="update-label">Press:</span><strong>${escapeHtml(d.press)}</strong></div>`;
+  if(d.type==='single'){
+    html += `<div class="form-row"><span class="update-label">Size:</span><span>${escapeHtml(d.sizeU)||'-'}</span></div>`;
+    html += `<div class="form-row"><span class="update-label">Mould:</span><span>${escapeHtml(d.mouldU)||'-'}</span></div>`;
+  } else {
+    html += `<div class="form-section-label">Upper</div>`;
+    html += `<div class="form-row"><span class="update-label">Size:</span><span>${escapeHtml(d.sizeU)||'-'}</span><span class="update-label">Mould:</span><span>${escapeHtml(d.mouldU)||'-'}</span></div>`;
+    html += `<div class="form-section-label">Lower</div>`;
+    html += `<div class="form-row"><span class="update-label">Size:</span><span>${escapeHtml(d.sizeL)||'-'}</span><span class="update-label">Mould:</span><span>${escapeHtml(d.mouldL)||'-'}</span></div>`;
+  }
+  html += `<div class="flex mt-2">
+      <button class="btn btn-sm" onclick="closeModal();goToUpdate('${d.id}')"><i class="fas fa-pen"></i> Update</button>
+      <button class="btn btn-sm btn-outline" onclick="closeModal();goToRejection('${d.id}')"><i class="fas fa-times-circle"></i> Log Rejection</button>
+    </div>`;
+  return html;
+}
+function goToUpdate(id){
+  const d=getById(id); if(!d) return;
+  navigate('update');
+  document.getElementById('updateHallInput').value=d.hall;
+  document.getElementById('updatePressInput').value=d.press;
+  loadUpdatePress(d.hall, d.press);
+}
+function goToRejection(id){
+  const d=getById(id); if(!d) return;
+  navigate('rejection');
+  document.getElementById('rejHallInput').value=d.hall;
+  document.getElementById('rejSearch').value=d.press;
+  loadRejectionById(id);
+}
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+const PAGE_LABELS={dashboard:'Dashboard', layout:'Mould Layout', search:'Search', update:'Update', rejection:'Rejection Tracking', reports:'Reports'};
+function navigate(pageId){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  const target=document.getElementById('page-'+pageId);
+  if(target) target.classList.add('active');
+  document.querySelectorAll('.drawer-link[data-page]').forEach(a=>a.classList.remove('active'));
+  const navLink=document.querySelector(`.drawer-link[data-page="${pageId}"]`);
+  if(navLink) navLink.classList.add('active');
+  const sub=document.getElementById('topbarSubtitle');
+  if(sub) sub.textContent=PAGE_LABELS[pageId]||'';
+  closeDrawer();
+  if(pageId==='dashboard') renderDashboard();
+  if(pageId==='update') renderHistory();
+  if(pageId==='layout') renderLayout();
+  if(pageId==='rejection') renderRejLog();
+}
+document.querySelectorAll('.drawer-link[data-page]').forEach(a=>{
+  a.addEventListener('click', function(e){ e.preventDefault(); navigate(this.dataset.page); });
+});
+function openDrawer(){
+  document.getElementById('navDrawer').classList.add('open');
+  document.getElementById('drawerOverlay').classList.add('open');
+  document.querySelector('#menuBtn i').className='fas fa-xmark';
+}
+function closeDrawer(){
+  document.getElementById('navDrawer').classList.remove('open');
+  document.getElementById('drawerOverlay').classList.remove('open');
+  document.querySelector('#menuBtn i').className='fas fa-bars';
+}
+document.getElementById('menuBtn').addEventListener('click', function(){
+  document.getElementById('navDrawer').classList.contains('open') ? closeDrawer() : openDrawer();
+});
+document.getElementById('drawerClose').addEventListener('click', closeDrawer);
+document.getElementById('drawerOverlay').addEventListener('click', closeDrawer);
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+function renderDashboard(){
+  document.getElementById('lastUpdatedNote').textContent = 'Layout data as of ' + DATA_SOURCE_DATE + ' · ' + masterData.length + ' presses tracked across 2 halls';
+
+  const totalPress=masterData.length;
+  const hall1Count=masterData.filter(d=>d.hall==='Hall 1').length;
+  const hall2Count=masterData.filter(d=>d.hall==='Hall 2').length;
+  const totalMould=masterData.reduce((acc,d)=>acc+(d.mouldU?1:0)+(d.type==='double'&&d.mouldL?1:0),0);
+  const emptySlots=masterData.reduce((acc,d)=>acc+(d.mouldU?0:1)+(d.type==='double'&&!d.mouldL?1:0),0);
+
+  const todayStr=new Date().toISOString().slice(0,10);
+  const todayRej=rejectionData.filter(r=>r.date===todayStr).reduce((s,r)=>s+(r.upperRej||0)+(r.lowerRej||0),0);
+  const nowM=new Date().getMonth(), nowY=new Date().getFullYear();
+  const monthRej=rejectionData.filter(r=>{
+    const d=new Date(r.date+'T00:00:00');
+    return d.getMonth()===nowM && d.getFullYear()===nowY;
+  }).reduce((s,r)=>s+(r.upperRej||0)+(r.lowerRej||0),0);
+  const updatedToday=updateHistory.filter(u=>u.date===todayStr).length;
+
+  document.getElementById('dashStats').innerHTML=`
+    <div class="stat-card"><h3><i class="fas fa-industry"></i> Total Presses</h3><div class="value" data-count="${totalPress}">0</div></div>
+    <div class="stat-card"><h3><i class="fas fa-warehouse"></i> Hall 1 / Hall 2</h3><div class="value" style="font-size:1.4rem;">${hall1Count} / ${hall2Count}</div></div>
+    <div class="stat-card"><h3><i class="fas fa-cubes"></i> Total Mould Slots</h3><div class="value" data-count="${totalMould}">0</div></div>
+    <div class="stat-card${emptySlots>0?' warn':''}"><h3><i class="fas fa-triangle-exclamation"></i> Empty Mould Slots</h3><div class="value" data-count="${emptySlots}">0</div></div>
+    <div class="stat-card"><h3><i class="fas fa-calendar-day"></i> Today's Rejection</h3><div class="value" data-count="${todayRej}">0</div></div>
+    <div class="stat-card"><h3><i class="fas fa-calendar-alt"></i> Monthly Rejection</h3><div class="value" data-count="${monthRej}">0</div></div>
+    <div class="stat-card"><h3><i class="fas fa-pen"></i> Updated Today</h3><div class="value" data-count="${updatedToday}">0</div></div>
+  `;
+  document.querySelectorAll('#dashStats .value[data-count]').forEach(el=>animateCount(el, parseInt(el.dataset.count)||0));
+
+  const mouldRej={};
+  const sizeRej={};
+  rejectionData.forEach(r=>{
+    const keyU=r.hall+' P'+r.press+' · '+r.upperMould+' (Upper)';
+    mouldRej[keyU]=(mouldRej[keyU]||0)+(r.upperRej||0);
+    if(r.sizeU) sizeRej[r.sizeU]=(sizeRej[r.sizeU]||0)+(r.upperRej||0);
+    if(r.type==='double'){
+      const keyL=r.hall+' P'+r.press+' · '+r.lowerMould+' (Lower)';
+      mouldRej[keyL]=(mouldRej[keyL]||0)+(r.lowerRej||0);
+      if(r.sizeL) sizeRej[r.sizeL]=(sizeRej[r.sizeL]||0)+(r.lowerRej||0);
+    }
+  });
+  const sortedS=Object.entries(sizeRej).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById('topSizes').innerHTML = sortedS.length ?
+    sortedS.map(([k,v],i)=>`<div class="top-item"><span><span class="rank">#${i+1}</span> ${escapeHtml(k)}</span><span class="count">${v}</span></div>`).join('') :
+    '<div class="empty-state">No rejection data yet</div>';
+  const sortedM=Object.entries(mouldRej).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById('topMoulds').innerHTML = sortedM.length ?
+    sortedM.map(([k,v],i)=>`<div class="top-item"><span><span class="rank">#${i+1}</span> ${escapeHtml(k)}</span><span class="count">${v}</span></div>`).join('') :
+    '<div class="empty-state">No rejection data yet</div>';
+
+  const pressRej={};
+  rejectionData.forEach(r=>{
+    const key=r.hall+' · Press '+r.press;
+    pressRej[key]=(pressRej[key]||0)+(r.upperRej||0)+(r.lowerRej||0);
+  });
+  const sortedP=Object.entries(pressRej).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  document.getElementById('topPresses').innerHTML = sortedP.length ?
+    sortedP.map(([k,v],i)=>`<div class="top-item"><span><span class="rank">#${i+1}</span> ${escapeHtml(k)}</span><span class="count">${v}</span></div>`).join('') :
+    '<div class="empty-state">No rejection data yet</div>';
+
+  const recent=updateHistory.slice(-5).reverse();
+  document.getElementById('recentUpdates').innerHTML = recent.length ?
+    recent.map(u=>`<div class="top-item"><span>${u.date} ${u.time} — ${escapeHtml(u.hall)} Press ${escapeHtml(u.press)}: ${escapeHtml(u.field)}</span><span class="text-muted">${escapeHtml(u.oldValue)} → ${escapeHtml(u.newValue)}</span></div>`).join('') :
+    '<div class="empty-state">No updates yet</div>';
+}
+
+// ============================================================
+// LAYOUT BROWSER
+// ============================================================
+let layoutHallFilter='', layoutLineFilter='', layoutSizeFilter='', layoutSort={col:'h',dir:1};
+function refreshLayoutSizeOptions(){
+  const sel=document.getElementById('layoutSizeFilter');
+  populateSizeSelect(sel, getDistinctSizes(layoutHallFilter, layoutLineFilter), true);
+  layoutSizeFilter=sel.value;
+}
+function renderHallChips(){
+  const halls=['','Hall 1','Hall 2'];
+  document.getElementById('hallChips').innerHTML = halls.map(h=>
+    `<div class="chip${layoutHallFilter===h?' active':''}" data-hall="${h}">${h||'All Halls'}</div>`
+  ).join('');
+  document.querySelectorAll('#hallChips .chip').forEach(c=>{
+    c.addEventListener('click', function(){
+      layoutHallFilter=this.dataset.hall; layoutLineFilter='';
+      renderHallChips(); renderLineChips(); refreshLayoutSizeOptions(); renderLayout();
+    });
+  });
+}
+function renderLineChips(){
+  let lines=[1,2,3,4,5,6];
+  document.getElementById('lineChips').innerHTML = ['',...lines].map(l=>
+    `<div class="chip${String(layoutLineFilter)===String(l)?' active':''}" data-line="${l}">${l===''?'All Lines':'Line '+l}</div>`
+  ).join('');
+  document.querySelectorAll('#lineChips .chip').forEach(c=>{
+    c.addEventListener('click', function(){
+      layoutLineFilter=this.dataset.line;
+      renderLineChips(); refreshLayoutSizeOptions(); renderLayout();
+    });
+  });
+}
+document.getElementById('layoutSizeFilter').addEventListener('change', function(){
+  layoutSizeFilter=this.value; renderLayout();
+});
+function renderLayout(){
+  let rows=masterData.slice();
+  if(layoutHallFilter) rows=rows.filter(d=>d.hall===layoutHallFilter);
+  if(layoutLineFilter) rows=rows.filter(d=>String(d.line)===String(layoutLineFilter));
+  if(layoutSizeFilter) rows=rows.filter(d=>d.sizeU===layoutSizeFilter || (d.type==='double' && d.sizeL===layoutSizeFilter));
+  const filterVal=document.getElementById('layoutFilterInput').value.trim().toLowerCase();
+  if(filterVal){
+    rows=rows.filter(d=> String(d.press).toLowerCase().includes(filterVal) ||
+      String(d.sizeU).toLowerCase().includes(filterVal) || String(d.sizeL).toLowerCase().includes(filterVal) ||
+      String(d.mouldU).toLowerCase().includes(filterVal) || String(d.mouldL).toLowerCase().includes(filterVal));
+    rows=sortByRelevance(rows, filterVal, 'all');
+  } else {
+    rows.sort((a,b)=>{
+      let av,bv;
+      if(layoutSort.col==='pn'){ av=parseInt(a.press)||0; bv=parseInt(b.press)||0; }
+      else if(layoutSort.col==='l'){ av=a.line; bv=b.line; }
+      else { av=a.hall; bv=b.hall; }
+      if(av<bv) return -1*layoutSort.dir;
+      if(av>bv) return 1*layoutSort.dir;
+      return (parseInt(a.press)||0)-(parseInt(b.press)||0);
+    });
+  }
+
+  document.getElementById('layoutCount').textContent = rows.length + ' press' + (rows.length!==1?'es':'') + ' shown';
+
+  const tbody=document.querySelector('#layoutTable tbody');
+  tbody.innerHTML = rows.length ? rows.map(d=>{
+    const typeBadge = d.type==='single' ? '<span class="badge single">Single</span>' : '<span class="badge">Double</span>';
+    return `<tr class="row-click" data-id="${d.id}" style="cursor:pointer;">
+      <td><span class="${hallBadgeClass(d.hall)}">${d.hall}</span></td>
+      <td>${d.line}</td>
+      <td><strong>${escapeHtml(d.press)}</strong></td>
+      <td>${typeBadge}</td>
+      <td>${escapeHtml(d.sizeU)||'-'}</td>
+      <td>${escapeHtml(d.mouldU)||'<span class="badge empty">empty</span>'}</td>
+      <td>${d.type==='double'?(escapeHtml(d.sizeL)||'-'):'—'}</td>
+      <td>${d.type==='double'?(escapeHtml(d.mouldL)||'<span class="badge empty">empty</span>'):'—'}</td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="8" style="text-align:center;opacity:.5;padding:1.5rem;">No presses match this filter</td></tr>`;
+
+  const cardsDiv=document.getElementById('layoutCards');
+  cardsDiv.innerHTML = rows.length ? rows.map(d=>{
+    const typeBadge = d.type==='single' ? '<span class="badge single">Single</span>' : '<span class="badge">Double</span>';
+    return `<div class="press-card row-click" data-id="${d.id}">
+      <div class="pc-top"><span class="pc-press">${escapeHtml(d.hall)} · Press ${escapeHtml(d.press)}</span>${typeBadge}</div>
+      <div class="pc-row"><span>Line</span><b>${d.line}</b></div>
+      <div class="pc-row"><span>Size (Upper)</span><b>${escapeHtml(d.sizeU)||'-'}</b></div>
+      <div class="pc-row"><span>Mould (Upper)</span><b>${escapeHtml(d.mouldU)||'-'}</b></div>
+      ${d.type==='double'?`<div class="pc-row"><span>Size (Lower)</span><b>${escapeHtml(d.sizeL)||'-'}</b></div><div class="pc-row"><span>Mould (Lower)</span><b>${escapeHtml(d.mouldL)||'-'}</b></div>`:''}
+    </div>`;
+  }).join('') : '<div class="empty-state">No presses match this filter</div>';
+
+  document.querySelectorAll('.row-click').forEach(el=>{
+    el.addEventListener('click', function(){
+      const d=getById(this.dataset.id);
+      if(d) openModal(d.hall+' · Press '+d.press, pressDetailHtml(d));
+    });
+  });
+}
+document.getElementById('layoutFilterInput').addEventListener('input', renderLayout);
+document.querySelectorAll('#layoutTable th.sortable').forEach(th=>{
+  th.addEventListener('click', function(){
+    const col=this.dataset.sort;
+    if(layoutSort.col===col) layoutSort.dir*=-1; else { layoutSort.col=col; layoutSort.dir=1; }
+    renderLayout();
+  });
+});
+
+// ============================================================
+// SEARCH — ENHANCED
+// ============================================================
+const searchInput=document.getElementById('searchInput');
+const searchType=document.getElementById('searchType');
+const searchHall=document.getElementById('searchHall');
+const searchSizeFilter=document.getElementById('searchSizeFilter');
+const searchBtn=document.getElementById('searchBtn');
+const suggDiv=document.getElementById('searchSuggestions');
+const resultDiv=document.getElementById('searchResult');
+const statsDiv=document.getElementById('searchStats');
+populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
+searchHall.addEventListener('change', function(){
+  populateSizeSelect(searchSizeFilter, getDistinctSizes(this.value, ''), true);
+  runSearchIfReady();
+});
+
+function matchesType(d, q, type){
+  const ql=q.toLowerCase();
+  if(type==='press') return String(d.press).toLowerCase().includes(ql);
+  if(type==='mould') return String(d.mouldU).toLowerCase().includes(ql) || (d.type==='double'&&String(d.mouldL).toLowerCase().includes(ql));
+  if(type==='size') return String(d.sizeU).toLowerCase().includes(ql) || (d.type==='double'&&String(d.sizeL).toLowerCase().includes(ql));
+  return String(d.press).toLowerCase().includes(ql) || String(d.sizeU).toLowerCase().includes(ql) ||
+    String(d.sizeL).toLowerCase().includes(ql) || String(d.mouldU).toLowerCase().includes(ql) ||
+    (d.type==='double'&&String(d.mouldL).toLowerCase().includes(ql));
+}
+function relevanceScore(d, q, type){
+  const ql=String(q).toLowerCase();
+  const press=String(d.press).toLowerCase();
+  const mu=String(d.mouldU).toLowerCase(), ml=String(d.mouldL).toLowerCase();
+  if(type==='press' || type==='all'){
+    if(press===ql) return 0;          // exact press number match — always first
+    if(press.startsWith(ql)) return 2; // press numbers starting with the query
+  }
+  if(type==='mould' || type==='all'){
+    if(mu===ql || (d.type==='double'&&ml===ql)) return 1; // exact mould match
+    if(mu.startsWith(ql) || (d.type==='double'&&ml.startsWith(ql))) return 3;
+  }
+  if(type==='size' && (String(d.sizeU).toLowerCase()===ql || (d.type==='double'&&String(d.sizeL).toLowerCase()===ql))) return 1;
+  return 4; // generic substring match, lowest priority
+}
+function sortByRelevance(arr, q, type){
+  return arr.slice().sort((a,b)=>{
+    const ra=relevanceScore(a,q,type), rb=relevanceScore(b,q,type);
+    if(ra!==rb) return ra-rb;
+    if(a.hall!==b.hall) return a.hall<b.hall?-1:1;
+    return (parseInt(a.press)||0)-(parseInt(b.press)||0);
+  });
+}
+function performSearch(query, type, hall, sizeExact){
+  const q=String(query).trim();
+  if(!q && !sizeExact) return {results:[], html:'', count:0};
+  let results=masterData.filter(d=> (!hall||d.hall===hall) && (!q||matchesType(d,q,type)));
+  if(sizeExact) results=results.filter(d=>d.sizeU===sizeExact || (d.type==='double' && d.sizeL===sizeExact));
+  if(q) results=sortByRelevance(results, q, type);
+  if(!results.length){
+    return {results:[], html:`<div class="glass" style="padding:2rem;text-align:center;opacity:.6;">
+      <i class="fas fa-search" style="font-size:2rem;display:block;margin-bottom:.5rem;"></i>
+      No results found${q?' for "<strong>'+escapeHtml(q)+'</strong>"':''}</div>`, count:0};
+  }
+  const html=results.map(d=>{
+    const typeBadge=d.type==='single'?'<span class="badge single">Single</span>':'<span class="badge">Double</span>';
+    let mouldInfo;
+    if(d.type==='single'){
+      mouldInfo=`<div><span class="label">Mould</span><br><span class="value">${escapeHtml(d.mouldU)||'-'}</span></div>`;
+    } else {
+      mouldInfo=`<div><span class="label">Upper Mould</span><br><span class="value">${escapeHtml(d.mouldU)||'-'}</span></div>
+                 <div><span class="label">Lower Mould</span><br><span class="value">${escapeHtml(d.mouldL)||'-'}</span></div>`;
+    }
+    return `<div class="result-card" data-id="${d.id}">
+      <span class="${hallBadgeClass(d.hall)}">${d.hall}</span>
+      <span class="badge">Line ${d.line}</span>${typeBadge}
+      <div><span class="label">Press</span><br><span class="value">${escapeHtml(d.press)}</span></div>
+      <div><span class="label">Size</span><br><span class="value">${escapeHtml(d.sizeU)}${d.type==='double'&&d.sizeL!==d.sizeU?' / '+escapeHtml(d.sizeL):''}</span></div>
+      ${mouldInfo}
+    </div>`;
+  }).join('');
+  return {results, html, count:results.length};
+}
+function runSearchIfReady(){
+  const val=searchInput.value.trim();
+  const sizeVal=searchSizeFilter.value;
+  if(!val && !sizeVal){ resultDiv.innerHTML=''; statsDiv.textContent=''; return; }
+  const result=performSearch(val, searchType.value, searchHall.value, sizeVal);
+  resultDiv.innerHTML=result.html;
+  statsDiv.textContent=result.count>0?`Found ${result.count} result${result.count>1?'s':''}`:'';
+  bindResultClicks();
+}
+function doSearch(){
+  suggDiv.style.display='none';
+  runSearchIfReady();
+}
+function bindResultClicks(){
+  document.querySelectorAll('#searchResult .result-card').forEach(card=>{
+    card.addEventListener('click', function(){
+      const d=getById(this.dataset.id);
+      if(d) openModal(d.hall+' · Press '+d.press, pressDetailHtml(d));
+    });
+  });
+}
+function renderSuggestions(val){
+  const sugg=sortByRelevance(masterData.filter(d=>matchesType(d,val,'all')), val, 'all').slice(0,7);
+  if(sugg.length && val.length>=1 && val.length<4){
+    suggDiv.style.display='block';
+    suggDiv.innerHTML=sugg.map(d=>
+      `<div class="suggestion-item" data-id="${d.id}">
+        <span><span class="highlight">${escapeHtml(d.hall)} P${escapeHtml(d.press)}</span> · ${escapeHtml(d.sizeU)} · U:${escapeHtml(d.mouldU)||'-'}${d.type==='double'?' L:'+(escapeHtml(d.mouldL)||'-'):''}</span>
+        <span class="badge">L${d.line}</span>
+      </div>`
+    ).join('');
+  } else {
+    suggDiv.style.display='none';
+  }
+}
+searchInput.addEventListener('input', function(){
+  const val=this.value.trim();
+  const sizeVal=searchSizeFilter.value;
+  if(val.length===0){ suggDiv.style.display='none'; runSearchIfReady(); return; }
+  if(val.length<4 && !sizeVal){ renderSuggestions(val); return; }
+  suggDiv.style.display='none';
+  runSearchIfReady();
+});
+searchType.addEventListener('change', runSearchIfReady);
+searchSizeFilter.addEventListener('change', runSearchIfReady);
+searchBtn.addEventListener('click', doSearch);
+searchInput.addEventListener('keyup', function(e){ if(e.key==='Enter') doSearch(); });
+suggDiv.addEventListener('click', function(e){
+  const item=e.target.closest('.suggestion-item');
+  if(item){
+    const d=getById(item.dataset.id);
+    suggDiv.style.display='none';
+    if(d){ openModal(d.hall+' · Press '+d.press, pressDetailHtml(d)); }
+  }
+});
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#searchSuggestions') && !e.target.closest('#searchInput')) suggDiv.style.display='none';
+});
+
+// ============================================================
+// UPDATE
+// ============================================================
+let currentUpdateId=null;
+function loadUpdatePress(hall, press){
+  const d=getByHallPress(hall, press);
+  if(!d){ toast('Press not found in '+hall, 'error'); document.getElementById('updateForm').style.display='none'; return; }
+  currentUpdateId=d.id;
+  document.getElementById('updateForm').style.display='block';
+  document.getElementById('uPress').textContent=d.hall+' · Press '+d.press+' (Line '+d.line+')';
+  document.getElementById('uTypeBadge').innerHTML = d.type==='single'?'<span class="badge single">Single</span>':'<span class="badge">Double</span>';
+  document.getElementById('uUpperLabel').textContent = d.type==='single' ? 'Mould Details' : 'Upper';
+  document.getElementById('uSizeU').value=d.sizeU;
+  document.getElementById('uMouldU').value=d.mouldU;
+  document.getElementById('lowerBlock').style.display = d.type==='single' ? 'none' : 'block';
+  document.getElementById('uSizeL').value=d.sizeL;
+  document.getElementById('uMouldL').value=d.mouldL;
+}
+document.getElementById('loadPressBtn').addEventListener('click', function(){
+  const hall=document.getElementById('updateHallInput').value;
+  const press=document.getElementById('updatePressInput').value.trim();
+  if(press) loadUpdatePress(hall, press);
+});
+document.getElementById('updatePressInput').addEventListener('keyup', function(e){
+  if(e.key==='Enter'){
+    const hall=document.getElementById('updateHallInput').value;
+    const press=this.value.trim();
+    if(press) loadUpdatePress(hall, press);
+  }
+});
+const updateSuggDiv=document.getElementById('updateSuggestions');
+document.getElementById('updatePressInput').addEventListener('input', function(){
+  const val=this.value.trim();
+  const hall=document.getElementById('updateHallInput').value;
+  if(val.length<1){ updateSuggDiv.style.display='none'; return; }
+  const sugg=masterData.filter(d=>d.hall===hall && String(d.press).toLowerCase().includes(val.toLowerCase())).slice(0,7);
+  if(sugg.length){
+    updateSuggDiv.style.display='block';
+    updateSuggDiv.innerHTML=sugg.map(d=>`<div class="suggestion-item" data-press="${d.press}"><span class="highlight">Press ${escapeHtml(d.press)}</span><span class="badge">L${d.line}</span></div>`).join('');
+  } else updateSuggDiv.style.display='none';
+});
+updateSuggDiv.addEventListener('click', function(e){
+  const item=e.target.closest('.suggestion-item');
+  if(item){
+    updateSuggDiv.style.display='none';
+    document.getElementById('updatePressInput').value=item.dataset.press;
+    loadUpdatePress(document.getElementById('updateHallInput').value, item.dataset.press);
+  }
+});
+document.addEventListener('click', function(e){
+  if(!e.target.closest('#updateSuggestions') && !e.target.closest('#updatePressInput')) updateSuggDiv.style.display='none';
+});
+
+function logFieldChange(d, field, oldVal, newVal){
+  if(String(oldVal)===String(newVal)) return;
+  updateHistory.push({
+    date:new Date().toISOString().slice(0,10),
+    time:new Date().toTimeString().slice(0,8),
+    hall:d.hall, press:d.press, field, oldValue:oldVal||'-', newValue:newVal||'-'
+  });
+}
+document.getElementById('saveUpdateBtn').addEventListener('click', function(){
+  const d=getById(currentUpdateId);
+  if(!d){ toast('Load a press first', 'error'); return; }
+  const newSizeU=document.getElementById('uSizeU').value.trim();
+  const newMouldU=document.getElementById('uMouldU').value.trim();
+  if(!newSizeU){ toast('Enter a size', 'error'); return; }
+
+  logFieldChange(d,'Size (Upper)', d.sizeU, newSizeU);
+  logFieldChange(d,'Mould (Upper)', d.mouldU, newMouldU);
+  d.sizeU=newSizeU; d.mouldU=newMouldU;
+
+  if(d.type==='double'){
+    const newSizeL=document.getElementById('uSizeL').value.trim();
+    const newMouldL=document.getElementById('uMouldL').value.trim();
+    logFieldChange(d,'Size (Lower)', d.sizeL, newSizeL);
+    logFieldChange(d,'Mould (Lower)', d.mouldL, newMouldL);
+    d.sizeL=newSizeL; d.mouldL=newMouldL;
+  }
+  saveMaster(); saveHistory(); renderHistory();
+  toast('Press updated successfully', 'success');
+});
+document.getElementById('resetPressBtn').addEventListener('click', function(){
+  const d=getById(currentUpdateId);
+  if(!d) return;
+  if(!confirm('Reset '+d.hall+' Press '+d.press+' back to the original spreadsheet values?')) return;
+  const seed=PRESS_DATA.find(s=>s.h===d.hall && s.p===d.press);
+  if(!seed) return;
+  logFieldChange(d,'Size (Upper)', d.sizeU, seed.su);
+  logFieldChange(d,'Mould (Upper)', d.mouldU, seed.mu);
+  logFieldChange(d,'Size (Lower)', d.sizeL, seed.sl);
+  logFieldChange(d,'Mould (Lower)', d.mouldL, seed.ml);
+  d.sizeU=seed.su; d.mouldU=seed.mu; d.sizeL=seed.sl; d.mouldL=seed.ml;
+  saveMaster(); saveHistory(); renderHistory();
+  loadUpdatePress(d.hall, d.press);
+  toast('Press reset to original values', 'success');
+});
+document.getElementById('resetAllBtn').addEventListener('click', function(){
+  if(!confirm('This will discard ALL edits and restore every press to the original spreadsheet layout. Update history and rejection logs are kept. Continue?')) return;
+  masterData=seedMaster();
+  saveMaster();
+  refreshLayoutSizeOptions();
+  populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
+  toast('Entire layout reset to original data', 'success');
+  navigate('dashboard');
+});
+
+document.getElementById('backupDataBtn').addEventListener('click', function(){
+  const backup={
+    type:'mms-backup', version:2, exportedAt:new Date().toISOString(),
+    masterData, updateHistory, rejectionData
+  };
+  const blob=new Blob([JSON.stringify(backup, null, 2)], {type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download='MMS_Backup_'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  toast('Backup downloaded', 'success');
+});
+const restoreFileInput=document.createElement('input');
+restoreFileInput.type='file'; restoreFileInput.accept='.json'; restoreFileInput.style.display='none';
+document.body.appendChild(restoreFileInput);
+restoreFileInput.addEventListener('change', function(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      const data=JSON.parse(ev.target.result);
+      if(!data || data.type!=='mms-backup' || !Array.isArray(data.masterData)){
+        toast('This doesn\'t look like a valid backup file', 'error'); return;
+      }
+      if(!confirm('Restore this backup? Your current data on this device will be replaced.')) return;
+      masterData=data.masterData;
+      updateHistory=Array.isArray(data.updateHistory)?data.updateHistory:[];
+      rejectionData=Array.isArray(data.rejectionData)?data.rejectionData:[];
+      rejectionData.forEach(entry=>{ if(!entry.id) entry.id=Date.now()+'-'+Math.random().toString(36).slice(2,8); });
+      saveMaster(); saveHistory(); saveRejection();
+      refreshLayoutSizeOptions();
+      populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
+      toast('Backup restored successfully', 'success');
+      navigate('dashboard');
+    }catch(err){ toast('Could not read this backup file', 'error'); }
+  };
+  reader.readAsText(file);
+  restoreFileInput.value='';
+});
+document.getElementById('restoreDataBtn').addEventListener('click', function(){ restoreFileInput.click(); });
+function renderHistory(){
+  const tbody=document.querySelector('#historyTable tbody');
+  if(!updateHistory.length){
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;opacity:.5;padding:1.5rem;">No updates yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML=updateHistory.slice(-30).reverse().map(h=>
+    `<tr><td>${h.date}</td><td>${h.time}</td><td><span class="${hallBadgeClass(h.hall)}">${h.hall}</span></td><td><strong>${escapeHtml(h.press)}</strong></td><td>${escapeHtml(h.field)}</td><td>${escapeHtml(h.oldValue)}</td><td>${escapeHtml(h.newValue)}</td></tr>`
+  ).join('');
+}
+document.getElementById('downloadLayoutBtn').addEventListener('click', function(){
+  exportOriginalFormatLayout();
+  toast('Layout downloaded in original sheet format', 'success');
+});
+document.getElementById('downloadHistoryBtn').addEventListener('click', function(){
+  if(!updateHistory.length){ toast('No history to export', 'error'); return; }
+  exportExcel(updateHistory.map(h=>({Date:h.date, Time:h.time, Hall:h.hall, Press:h.press, Field:h.field, 'Old Value':h.oldValue, 'New Value':h.newValue})), 'UpdateHistory');
+});
+
+// ============================================================
+// REJECTION
+// ============================================================
+let currentRejId=null;
+document.getElementById('rejDate').value=new Date().toISOString().slice(0,10);
+
+function loadRejectionById(id){
+  const d=getById(id);
+  if(!d){ toast('Press not found', 'error'); return; }
+  currentRejId=id;
+  document.getElementById('rejPicker').style.display='none';
+  document.getElementById('rejInfo').style.display='block';
+  document.getElementById('rejForm').style.display='block';
+  const typeBadge=d.type==='single'?'<span class="badge single">Single</span>':'<span class="badge">Double</span>';
+  document.getElementById('rejInfo').innerHTML=`
+    <div class="flex">
+      <span class="${hallBadgeClass(d.hall)}">${d.hall}</span><span class="badge">Line ${d.line}</span>${typeBadge}
+      <div><span class="label">Press</span><br><strong style="font-size:1.1rem;">${escapeHtml(d.press)}</strong></div>
+      <div><span class="label">Upper Mould</span><br><strong>${escapeHtml(d.mouldU)||'-'}</strong></div>
+      ${d.type==='double'?`<div><span class="label">Lower Mould</span><br><strong>${escapeHtml(d.mouldL)||'-'}</strong></div>`:''}
+    </div>`;
+  document.getElementById('rejUpperLabel').textContent = d.type==='single' ? 'Reject Qty:' : 'Upper Reject Qty:';
+  document.getElementById('rejUpperQty').value=0;
+  document.getElementById('rejLowerQty').value=0;
+  document.getElementById('rejLowerLabel').style.display = d.type==='double' ? '' : 'none';
+  document.getElementById('rejLowerQty').style.display = d.type==='double' ? '' : 'none';
+}
+function loadRejectionSearch(){
+  const hall=document.getElementById('rejHallInput').value;
+  const val=document.getElementById('rejSearch').value.trim();
+  if(!val){ toast('Enter a press or mould number', 'error'); return; }
+  let matches = findByPressAnyHall(val);
+  if(hall) matches = matches.filter(d=>d.hall===hall);
+  if(matches.length===0){
+    matches = findByMould(val);
+    if(hall) matches = matches.filter(d=>d.hall===hall);
+  }
+  if(matches.length===0){ toast('No press or mould matches "'+val+'"', 'error'); document.getElementById('rejInfo').style.display='none'; document.getElementById('rejForm').style.display='none'; return; }
+  if(matches.length===1){ loadRejectionById(matches[0].id); return; }
+  const picker=document.getElementById('rejPicker');
+  picker.style.display='block';
+  picker.innerHTML = matches.map(d=>{
+    const pos = String(d.mouldU).trim()===val ? ' (Upper match)' : (d.type==='double'&&String(d.mouldL).trim()===val ? ' (Lower match)' : '');
+    return `<div class="suggestion-item" data-id="${d.id}">
+      <span><span class="highlight">${escapeHtml(d.hall)} · Press ${escapeHtml(d.press)}</span>${pos} — ${escapeHtml(d.sizeU)}</span>
+      <span class="badge">L${d.line}</span>
+    </div>`;
+  }).join('');
+  document.getElementById('rejInfo').style.display='none';
+  document.getElementById('rejForm').style.display='none';
+}
+document.getElementById('rejPicker').addEventListener('click', function(e){
+  const item=e.target.closest('.suggestion-item');
+  if(item) loadRejectionById(item.dataset.id);
+});
+document.getElementById('loadRejBtn').addEventListener('click', loadRejectionSearch);
+document.getElementById('rejSearch').addEventListener('keyup', function(e){ if(e.key==='Enter') loadRejectionSearch(); });
+
+document.getElementById('saveRejBtn').addEventListener('click', function(){
+  const d=getById(currentRejId);
+  if(!d){ toast('Load a press first', 'error'); return; }
+  const shift=document.getElementById('rejShift').value;
+  const date=document.getElementById('rejDate').value || new Date().toISOString().slice(0,10);
+  const upperRej=parseInt(document.getElementById('rejUpperQty').value)||0;
+  const lowerRej=d.type==='double' ? (parseInt(document.getElementById('rejLowerQty').value)||0) : 0;
+  if(upperRej===0 && lowerRej===0){ if(!confirm('All values are zero. Save anyway?')) return; }
+
+  rejectionData.push({
+    id: Date.now()+'-'+Math.random().toString(36).slice(2,8),
+    date, shift, hall:d.hall, line:d.line, press:d.press, type:d.type,
+    sizeU:d.sizeU, sizeL:d.sizeL, upperMould:d.mouldU, lowerMould:d.mouldL,
+    upperRej, lowerRej
+  });
+  saveRejection();
+  toast('Rejection saved', 'success');
+  renderDashboard(); renderRejLog();
+  document.getElementById('rejUpperQty').value=0;
+  document.getElementById('rejLowerQty').value=0;
+});
+function deleteRejectionEntry(id){
+  const entry=rejectionData.find(r=>r.id===id);
+  if(!entry) return;
+  if(!confirm('Delete this rejection entry — '+entry.hall+' Press '+entry.press+' on '+entry.date+'?')) return;
+  rejectionData=rejectionData.filter(r=>r.id!==id);
+  saveRejection();
+  renderDashboard(); renderRejLog();
+  toast('Rejection entry deleted', 'success');
+}
+function renderRejLog(){
+  const tbody=document.querySelector('#rejLogTable tbody');
+  if(!rejectionData.length){
+    tbody.innerHTML='<tr><td colspan="9" style="text-align:center;opacity:.5;padding:1.5rem;">No rejection entries yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML=rejectionData.slice(-30).reverse().map(r=>
+    `<tr><td>${r.date}</td><td>${r.shift}</td><td><span class="${hallBadgeClass(r.hall)}">${r.hall}</span></td><td><strong>${escapeHtml(r.press)}</strong></td><td>${escapeHtml(r.upperMould)||'-'}</td><td>${r.type==='double'?(escapeHtml(r.lowerMould)||'-'):'—'}</td><td>${r.upperRej}</td><td>${r.type==='double'?r.lowerRej:'—'}</td><td><button class="btn btn-danger btn-sm rej-delete-btn" data-id="${r.id}" title="Delete entry"><i class="fas fa-trash"></i></button></td></tr>`
+  ).join('');
+  document.querySelectorAll('.rej-delete-btn').forEach(btn=>{
+    btn.addEventListener('click', function(){ deleteRejectionEntry(this.dataset.id); });
+  });
+}
+document.getElementById('downloadRejReportBtn').addEventListener('click', function(){
+  if(!rejectionData.length){ toast('No rejection data to export', 'error'); return; }
+  exportExcel(rejectionData.map(r=>({Date:r.date, Shift:r.shift, Hall:r.hall, Line:r.line, Press:r.press, 'Upper Mould':r.upperMould, 'Lower Mould':r.lowerMould, 'Upper Reject':r.upperRej, 'Lower Reject':r.lowerRej})), 'RejectionReport');
+});
+
+// ============================================================
+// REPORTS
+// ============================================================
+function generateReport(type){
+  let rows=[];
+  if(type==='press'){
+    const map={};
+    rejectionData.forEach(r=>{
+      const k=r.hall+' | '+r.press;
+      if(!map[k]) map[k]={hall:r.hall, press:r.press, upper:0, lower:0};
+      map[k].upper+=r.upperRej||0; map[k].lower+=r.lowerRej||0;
+    });
+    rows=Object.values(map).map(v=>({Hall:v.hall, Press:v.press, Upper:v.upper, Lower:v.lower, Total:v.upper+v.lower}));
+  } else if(type==='mould'){
+    const map={};
+    rejectionData.forEach(r=>{
+      const u=r.hall+' | '+(r.upperMould||'-')+' (U)';
+      map[u]=(map[u]||0)+(r.upperRej||0);
+      if(r.type==='double'){
+        const l=r.hall+' | '+(r.lowerMould||'-')+' (L)';
+        map[l]=(map[l]||0)+(r.lowerRej||0);
+      }
+    });
+    rows=Object.entries(map).filter(([,v])=>v>0).map(([mould,q])=>({Mould:mould, Total:q}));
+  } else if(type==='size'){
+    const map={};
+    rejectionData.forEach(r=>{
+      if(r.sizeU) map[r.sizeU]=(map[r.sizeU]||0)+(r.upperRej||0);
+      if(r.type==='double' && r.sizeL) map[r.sizeL]=(map[r.sizeL]||0)+(r.lowerRej||0);
+    });
+    rows=Object.entries(map).filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]).map(([size,total])=>({Size:size, Total:total}));
+  } else if(type==='hall'){
+    const map={};
+    rejectionData.forEach(r=>{
+      map[r.hall]=(map[r.hall]||0)+(r.upperRej||0)+(r.lowerRej||0);
+    });
+    rows=Object.entries(map).map(([hall,total])=>({Hall:hall, Total:total}));
+  } else if(type==='line'){
+    const map={};
+    rejectionData.forEach(r=>{
+      const k=r.hall+' | Line '+r.line;
+      map[k]=(map[k]||0)+(r.upperRej||0)+(r.lowerRej||0);
+    });
+    rows=Object.entries(map).map(([line,total])=>({'Hall / Line':line, Total:total}));
+  } else if(type==='date'){
+    rows=rejectionData.map(r=>({Date:r.date, Hall:r.hall, Press:r.press, Mould:(r.upperMould||'-')+'/'+(r.lowerMould||'-'), Reject:(r.upperRej||0)+(r.lowerRej||0)}));
+  } else if(type==='daily'){
+    const map={};
+    rejectionData.forEach(r=>{ map[r.date]=(map[r.date]||0)+(r.upperRej||0)+(r.lowerRej||0); });
+    rows=Object.entries(map).sort((a,b)=>a[0]<b[0]?-1:1).map(([date,total])=>({Date:date, Total:total}));
+  } else if(type==='monthly'){
+    const map={};
+    rejectionData.forEach(r=>{ const m=r.date.slice(0,7); map[m]=(map[m]||0)+(r.upperRej||0)+(r.lowerRej||0); });
+    rows=Object.entries(map).sort((a,b)=>a[0]<b[0]?-1:1).map(([month,total])=>({Month:month, Total:total}));
+  } else if(type==='dupes'){
+    const map={};
+    masterData.forEach(d=>{
+      if(d.mouldU) (map[d.mouldU]=map[d.mouldU]||[]).push(d.hall+' P'+d.press+' (Upper)');
+      if(d.type==='double' && d.mouldL) (map[d.mouldL]=map[d.mouldL]||[]).push(d.hall+' P'+d.press+' (Lower)');
+    });
+    rows=Object.entries(map).filter(([,locs])=>locs.length>1).sort((a,b)=>b[1].length-a[1].length)
+      .map(([mould,locs])=>({'Mould #':mould, 'Used In':locs.length, 'Locations':locs.join(', ')}));
+  }
+  return rows;
+}
+document.querySelectorAll('[data-report]').forEach(btn=>{
+  btn.addEventListener('click', function(){
+    const type=this.dataset.report;
+    const data=generateReport(type);
+    const out=document.getElementById('reportOutput');
+    if(!data.length){
+      out.innerHTML=`<div class="glass" style="padding:2rem;text-align:center;opacity:.5;">No data for this report</div>`;
+      return;
+    }
+    const headers=Object.keys(data[0]);
+    let html=`<div style="display:flex;justify-content:flex-end;margin-bottom:.5rem;">
+        <button class="btn btn-sm btn-outline" id="exportReportBtn"><i class="fas fa-download"></i> Export to Excel</button>
+      </div>
+      <div class="table-wrap"><table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${data.map(r=>`<tr>${headers.map(h=>`<td>${r[h]!==undefined?escapeHtml(r[h]):0}</td>`).join('')}</tr>`).join('')}</tbody>
+      </table></div>`;
+    out.innerHTML=html;
+    document.getElementById('exportReportBtn').addEventListener('click', function(){ exportExcel(data, 'Report_'+type); });
+  });
+});
+
+function exportExcel(data, filename){
+  if(!data || !data.length){ toast('No data to export', 'error'); return; }
+  const ws=XLSX.utils.json_to_sheet(data);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+  XLSX.writeFile(wb, filename+'.xlsx');
+}
+
+// ============================================================
+// ORIGINAL-FORMAT LAYOUT EXPORT
+// Rebuilds the exact Hall/Line spreadsheet structure you uploaded:
+// title block, "HALL # 0n" / "2 D/L Presses" / "Single D/L Presses"
+// section labels, "Line # n" headers, Press#/Size/Mould# columns,
+// and the same merge rules (Press # always merged across the pair
+// of rows; Size merged only when Upper = Lower; Mould # merged only
+// for single-cavity presses) — just filled with the current data.
+// ============================================================
+function exportOriginalFormatLayout(){
+  const LAST_COL=22; // 0-indexed -> 23 columns total (A..W), 6 lines x (3 data + spacer) minus trailing spacer
+  const rows=[]; const merges=[];
+  function blankArr(){ return new Array(LAST_COL+1).fill(''); }
+  function pushRow(arr){ rows.push(arr); return rows.length-1; }
+  function lineColStart(line){ return (line-1)*4; }
+  function addMerge(r1,c1,r2,c2){ merges.push({s:{r:r1,c:c1}, e:{r:r2,c:c2}}); }
+
+  function writeTitleBlock(){
+    const a=blankArr(); a[0]='M.C TUBE CURING PRESSES LAYOUT';
+    const r1=pushRow(a); const r2=pushRow(blankArr());
+    addMerge(r1,0,r2,LAST_COL);
+    const b=blankArr(); b[0]='Date: '+new Date().toLocaleDateString('en-GB').split('/').join('-');
+    const r3=pushRow(b);
+    addMerge(r3,0,r3,4);
+  }
+  function writeFullWidthLabel(text){
+    const a=blankArr(); a[0]=text;
+    const r=pushRow(a);
+    addMerge(r,0,r,LAST_COL);
+  }
+  function writeSplitLabel(leftText, rightText, leftEndLine, rightStartLine){
+    const a=blankArr(); a[0]=leftText;
+    const leftEndCol=lineColStart(leftEndLine)+2;
+    const rightStartCol=lineColStart(rightStartLine);
+    a[rightStartCol]=rightText;
+    const r=pushRow(a);
+    addMerge(r,0,r,leftEndCol);
+    addMerge(r,rightStartCol,r,LAST_COL);
+  }
+  function writeLineHeaderRow(){
+    const a=blankArr();
+    for(let line=1; line<=6; line++) a[lineColStart(line)]='Line # '+line;
+    const r=pushRow(a);
+    for(let line=1; line<=6; line++){ const c=lineColStart(line); addMerge(r,c,r,c+2); }
+  }
+  function writeSubHeaderRow(){
+    const a=blankArr();
+    for(let line=1; line<=6; line++){ const c=lineColStart(line); a[c]='Press #'; a[c+1]='Size'; a[c+2]='Mould #'; }
+    pushRow(a);
+  }
+  function writeDataRows(blockByLine){
+    const maxLen=Math.max(0, ...Object.values(blockByLine).map(a=>a.length));
+    for(let i=0;i<maxLen;i++){
+      const rTop=rows.length, rBot=rows.length+1;
+      const top=blankArr(), bot=blankArr();
+      for(let line=1; line<=6; line++){
+        const d=(blockByLine[line]||[])[i];
+        if(!d) continue;
+        const c=lineColStart(line);
+        top[c]=d.press; top[c+1]=d.sizeU; top[c+2]=d.mouldU;
+        bot[c]=d.press; bot[c+1]=d.sizeL; bot[c+2]=d.mouldL;
+        addMerge(rTop,c,rBot,c);
+        if(d.type==='single' || d.sizeU===d.sizeL) addMerge(rTop,c+1,rBot,c+1);
+        if(d.type==='single') addMerge(rTop,c+2,rBot,c+2);
+      }
+      pushRow(top); pushRow(bot);
+    }
+  }
+  function linesFor(hall){
+    const byLine={};
+    for(let line=1; line<=6; line++){
+      byLine[line]=masterData.filter(d=>d.hall===hall && d.line===line)
+        .sort((a,b)=>(parseInt(a.press)||0)-(parseInt(b.press)||0));
+    }
+    return byLine;
+  }
+  function splitHall1Blocks(byLine){
+    const block1={}, block2={};
+    for(let line=1; line<=6; line++){
+      const entries=byLine[line];
+      if(line<=4){
+        block1[line]=entries.filter(d=>d.type==='double');
+        block2[line]=entries.filter(d=>d.type==='single');
+      } else {
+        block1[line]=entries.slice(0,10);
+        block2[line]=entries.slice(10);
+      }
+    }
+    return {block1, block2};
+  }
+
+  writeTitleBlock();
+
+  // ---- HALL 1 ----
+  writeFullWidthLabel('HALL # 01');
+  writeFullWidthLabel('2 D/L Presses');
+  writeLineHeaderRow();
+  writeSubHeaderRow();
+  const hall1Lines=linesFor('Hall 1');
+  const {block1, block2}=splitHall1Blocks(hall1Lines);
+  writeDataRows(block1);
+  const hasBlock2=Object.values(block2).some(a=>a.length>0);
+  if(hasBlock2){
+    writeSplitLabel('Single D/L Presses', '2 D/L Presses', 4, 5);
+    writeDataRows(block2);
+  }
+
+  pushRow(blankArr());
+
+  // ---- HALL 2 ----
+  writeFullWidthLabel('HALL # 02');
+  writeFullWidthLabel('2 D/L Presses');
+  pushRow(blankArr());
+  pushRow(blankArr());
+  writeLineHeaderRow();
+  writeSubHeaderRow();
+  writeDataRows(linesFor('Hall 2'));
+
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!merges']=merges;
+  const colWidths=[];
+  for(let line=1; line<=6; line++){ colWidths.push({wch:9},{wch:13},{wch:11},{wch:3}); }
+  ws['!cols']=colWidths.slice(0, LAST_COL+1);
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Layout');
+  XLSX.writeFile(wb, 'MouldLayout_'+new Date().toISOString().slice(0,10)+'.xlsx');
+}
+
+// ============================================================
+// IMPORT EXCEL — robust parser for the Hall/Line layout sheet.
+// Detects "HALL # n" markers, "Press #/Size/Mould #" header rows,
+// and column-block groups (Press, Size, Mould per line). Uses the
+// sheet's merged-cell ranges to tell single-mould presses (merged
+// mould cell across 2 rows) from double presses (separate values).
+// ============================================================
+function importExcel(data){
+  try{
+    const wb=XLSX.read(data, {type:'array'});
+    let sheetName = wb.SheetNames.find(n=>/layout/i.test(n) && /2/.test(n)) || wb.SheetNames.find(n=>/layout/i.test(n)) || wb.SheetNames[0];
+    const ws=wb.Sheets[sheetName];
+    const merges=ws['!merges']||[];
+    const isMerged=(r,c)=>merges.some(m=>m.s.r===r && m.s.c===c && m.e.r===r+1 && m.e.c===c);
+    const grid=XLSX.utils.sheet_to_json(ws, {header:1, defval:'', raw:false});
+    const maxCols=grid.reduce((m,row)=>Math.max(m,row.length),0);
+
+    let currentHall='Hall 1';
+    let lineCols=null; // array of {press,size,mould} column indices, in line order
+    const newData=[];
+
+    for(let r=0;r<grid.length;r++){
+      const row=grid[r];
+      const rowText=row.join(' ');
+      const hallMatch=rowText.match(/HALL\s*#?\s*0?(\d+)/i);
+      if(hallMatch){ currentHall='Hall '+hallMatch[1]; lineCols=null; continue; }
+
+      if(/Press\s*#/i.test(rowText) && /Mould\s*#/i.test(rowText)){
+        lineCols=[];
+        for(let c=0;c<maxCols;c++){
+          if(String(row[c]).trim().match(/^Press\s*#/i)){
+            lineCols.push({press:c, size:c+1, mould:c+2});
+          }
+        }
+        continue;
+      }
+      if(!lineCols) continue;
+
+      for(let li=0;li<lineCols.length;li++){
+        const {press:pc, size:sc, mould:mc}=lineCols[li];
+        const pVal=String(row[pc]===undefined?'':row[pc]).trim();
+        if(!pVal || !/^\d+$/.test(pVal)) continue;
+        const nextRow=grid[r+1]||[];
+        const sizeU=String(row[sc]===undefined?'':row[sc]).trim();
+        const mouldU=String(row[mc]===undefined?'':row[mc]).trim();
+        const single=isMerged(r,mc);
+        let sizeL='', mouldL='';
+        if(!single){
+          sizeL=String(nextRow[sc]===undefined?'':nextRow[sc]).trim();
+          mouldL=String(nextRow[mc]===undefined?'':nextRow[mc]).trim();
+        }
+        newData.push({
+          id: currentHall+'__'+pVal,
+          hall:currentHall, line:li+1, press:pVal,
+          type: single?'single':'double',
+          sizeU, mouldU, sizeL, mouldL
+        });
+      }
+    }
+    // de-duplicate by id, keep first occurrence
+    const seen=new Set(); const deduped=[];
+    newData.forEach(d=>{ if(!seen.has(d.id)){ seen.add(d.id); deduped.push(d); } });
+
+    if(deduped.length){ masterData=deduped; saveMaster(); return deduped.length; }
+    return 0;
+  }catch(e){ console.error('Import error:', e); return -1; }
+}
+
+const fileInput=document.createElement('input');
+fileInput.type='file'; fileInput.accept='.xlsx,.xls'; fileInput.style.display='none';
+document.body.appendChild(fileInput);
+fileInput.addEventListener('change', function(e){
+  const file=e.target.files[0];
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=function(ev){
+    const count=importExcel(new Uint8Array(ev.target.result));
+    if(count>0){
+      toast('Imported '+count+' presses successfully', 'success');
+      refreshLayoutSizeOptions();
+      populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
+      renderDashboard(); navigate('dashboard');
+    }
+    else if(count===0) toast('No press rows found — check the sheet matches the Hall/Line layout format', 'error');
+    else toast('Could not read this file', 'error');
+  };
+  reader.readAsArrayBuffer(file);
+  fileInput.value='';
+});
+document.getElementById('importBtn').addEventListener('click', function(){ fileInput.click(); });
+
+// ============================================================
+// THEME
+// ============================================================
+function applyTheme(t){
+  document.body.classList.toggle('dark', t==='dark');
+  const icon=document.querySelector('#themeToggle i');
+  icon.className = t==='dark' ? 'fas fa-sun' : 'fas fa-moon';
+}
+document.getElementById('themeToggle').addEventListener('click', function(){
+  const isDark=document.body.classList.contains('dark');
+  const next=isDark?'light':'dark';
+  applyTheme(next);
+  localStorage.setItem(KEY_THEME, next);
+});
+
+// ============================================================
+// INIT
+// ============================================================
+loadFromStorage();
+applyTheme(localStorage.getItem(KEY_THEME) || 'light');
+renderDashboard();
+renderHallChips();
+renderLineChips();
+refreshLayoutSizeOptions();
+renderLayout();
+renderHistory();
+renderRejLog();
+
+console.log('✅ Mould Management System loaded —', masterData.length, 'presses (Hall 1:', masterData.filter(d=>d.hall==='Hall 1').length, ', Hall 2:', masterData.filter(d=>d.hall==='Hall 2').length, ')');
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', function(){
+    navigator.serviceWorker.register('service-worker.js').catch(function(){});
+  });
+}
+</script>
+</body>
+</html>
