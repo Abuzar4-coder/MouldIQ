@@ -5,7 +5,10 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css',
-  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+  'https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js',
+  'https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js',
+  'https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js'
 ];
 
 self.addEventListener('install', function(e){

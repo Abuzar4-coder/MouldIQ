@@ -10,6 +10,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore-compat.js"></script>
 <style>
 /* ===== RESET & BASE ===== */
 *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',system-ui,-apple-system,sans-serif;}
@@ -43,6 +46,10 @@ body.dark::before,body.dark::after{opacity:.16;}
 .dark .topbar-title .grad{background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .topbar-title small{font-weight:600;font-size:.7rem;opacity:.55;white-space:nowrap;}
 .topbar-spacer{flex:1;}
+.conn-badge{display:flex;align-items:center;gap:.4rem;font-size:.68rem;font-weight:600;opacity:.75;padding:.3rem .6rem;border-radius:30px;background:rgba(0,0,0,.04);white-space:nowrap;}
+.dark .conn-badge{background:rgba(255,255,255,.06);}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:#94a3b8;transition:background .3s;box-shadow:0 0 0 0 rgba(0,0,0,0);animation:connPulse 2s ease-in-out infinite;}
+@keyframes connPulse{0%,100%{opacity:1;}50%{opacity:.4;}}
 .topbar .icon-btn{background:none;border:1.5px solid rgba(37,99,235,.25);color:#2563eb;font-size:1rem;cursor:pointer;width:40px;height:40px;min-width:40px;border-radius:14px;display:flex;align-items:center;justify-content:center;transition:.3s cubic-bezier(.34,1.56,.64,1);position:relative;overflow:hidden;}
 .dark .topbar .icon-btn{color:#93bbfc;border-color:rgba(96,165,250,.25);}
 .topbar .icon-btn i{transition:transform .4s cubic-bezier(.34,1.56,.64,1);}
@@ -259,6 +266,8 @@ th.sortable .fa-sort,th.sortable .fa-sort-up,th.sortable .fa-sort-down{margin-le
 }
 @media (max-width:480px){
   .topbar-title small{display:none;}
+  .conn-badge #connText{display:none;}
+  .conn-badge{padding:.3rem;}
   .stat-card{padding:.9rem;}
   .stat-card .value{font-size:1.15rem;}
 }
@@ -285,6 +294,9 @@ th.sortable .fa-sort,th.sortable .fa-sort-up,th.sortable .fa-sort-down{margin-le
     <button class="menu-btn" id="menuBtn" title="Menu"><i class="fas fa-bars"></i></button>
     <div class="topbar-title"><span class="grad">Mould Management</span><small id="topbarSubtitle">Dashboard</small></div>
     <div class="topbar-spacer"></div>
+    <div class="conn-badge" id="connBadge" title="Shared database connection status">
+      <span class="conn-dot" id="connDot"></span><span id="connText">Local only</span>
+    </div>
     <button class="icon-btn" id="themeToggle" title="Toggle Theme"><i class="fas fa-moon"></i></button>
     <button class="icon-btn" id="importBtn" title="Import Excel"><i class="fas fa-upload"></i></button>
   </div>
@@ -716,6 +728,8 @@ let masterData=[];
 let updateHistory=[];
 let rejectionData=[];
 
+function genId(){ return Date.now()+'-'+Math.random().toString(36).slice(2,8); }
+
 function seedMaster(){
   return PRESS_DATA.map(d=>({
     id: d.h+'__'+d.p,
@@ -724,11 +738,97 @@ function seedMaster(){
   }));
 }
 
+// ============================================================
+// FIREBASE — shared live database (optional).
+// Paste your Firebase project's config below (Project settings > your web app)
+// to turn this from a single-device app into a live-shared one across every
+// phone that opens it. Leave it as-is and the app keeps working exactly as
+// before, saving only on this device.
+// ============================================================
+const firebaseConfig = {
+  apiKey: "PASTE_YOUR_API_KEY",
+  authDomain: "PASTE_YOUR_PROJECT.firebaseapp.com",
+  projectId: "PASTE_YOUR_PROJECT_ID",
+  storageBucket: "PASTE_YOUR_PROJECT.appspot.com",
+  messagingSenderId: "PASTE_YOUR_SENDER_ID",
+  appId: "PASTE_YOUR_APP_ID"
+};
+const FIREBASE_READY = !!(firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('PASTE'));
+let db=null;
+
+function setConnStatus(status){
+  const dot=document.getElementById('connDot'), text=document.getElementById('connText');
+  if(!dot||!text) return;
+  const map={
+    local:   {color:'#94a3b8', label:'Local only'},
+    connecting:{color:'#f59e0b', label:'Connecting…'},
+    online:  {color:'#16a34a', label:'Live · Synced'},
+    error:   {color:'#dc2626', label:'Connection error'}
+  };
+  const s=map[status]||map.local;
+  dot.style.background=s.color;
+  text.textContent=s.label;
+}
+
+function initFirebaseSync(){
+  setConnStatus('connecting');
+  firebase.initializeApp(firebaseConfig);
+  db=firebase.firestore();
+  db.enablePersistence({synchronizeTabs:true}).catch(function(){});
+  firebase.auth().signInAnonymously().catch(function(err){
+    console.error('Firebase auth failed', err);
+    setConnStatus('error');
+    toast('Could not connect to shared database — check your Firebase setup', 'error');
+  });
+  firebase.auth().onAuthStateChanged(function(user){
+    if(!user) return;
+    seedFirestoreIfEmpty().then(attachFirestoreListeners).catch(function(err){
+      console.error(err); setConnStatus('error');
+    });
+  });
+}
+function seedFirestoreIfEmpty(){
+  return db.collection('presses').limit(1).get().then(function(snap){
+    if(!snap.empty) return;
+    const batch=db.batch();
+    seedMaster().forEach(function(p){ batch.set(db.collection('presses').doc(p.id), p); });
+    return batch.commit();
+  });
+}
+function attachFirestoreListeners(){
+  db.collection('presses').onSnapshot(function(snap){
+    masterData=snap.docs.map(function(d){ return d.data(); });
+    saveLocalMaster();
+    setConnStatus('online');
+    refreshAfterSync();
+  }, function(err){ console.error(err); setConnStatus('error'); });
+
+  db.collection('rejections').orderBy('createdAt','desc').onSnapshot(function(snap){
+    rejectionData=snap.docs.map(function(d){ const v=d.data(); v.id=d.id; return v; });
+    saveLocalRejection();
+    refreshAfterSync();
+  }, function(err){ console.error(err); });
+
+  db.collection('history').orderBy('createdAt','desc').onSnapshot(function(snap){
+    updateHistory=snap.docs.map(function(d){ return d.data(); });
+    saveLocalHistory();
+    refreshAfterSync();
+  }, function(err){ console.error(err); });
+}
+function refreshAfterSync(){
+  const active=document.querySelector('.page.active');
+  if(!active) return;
+  if(active.id==='page-dashboard') renderDashboard();
+  if(active.id==='page-layout'){ refreshLayoutSizeOptions(); renderLayout(); }
+  if(active.id==='page-update') renderHistory();
+  if(active.id==='page-rejection') renderRejLog();
+}
+
 function loadFromStorage(){
   try{
     const m=localStorage.getItem(KEY_MASTER);
     masterData = m? JSON.parse(m) : seedMaster();
-    if(!m) saveMaster();
+    if(!m) saveLocalMaster();
   }catch(e){ masterData=seedMaster(); }
   try{
     const h=localStorage.getItem(KEY_HISTORY);
@@ -740,13 +840,17 @@ function loadFromStorage(){
   }catch(e){ rejectionData=[]; }
   let neededIdFix=false;
   rejectionData.forEach(entry=>{
-    if(!entry.id){ entry.id=Date.now()+'-'+Math.random().toString(36).slice(2,8); neededIdFix=true; }
+    if(!entry.id){ entry.id=genId(); neededIdFix=true; }
   });
-  if(neededIdFix) saveRejection();
+  if(neededIdFix) saveLocalRejection();
+
+  if(FIREBASE_READY) initFirebaseSync();
+  else setConnStatus('local');
 }
-function saveMaster(){ localStorage.setItem(KEY_MASTER, JSON.stringify(masterData)); }
-function saveHistory(){ localStorage.setItem(KEY_HISTORY, JSON.stringify(updateHistory)); }
-function saveRejection(){ localStorage.setItem(KEY_REJECTION, JSON.stringify(rejectionData)); }
+function saveLocalMaster(){ localStorage.setItem(KEY_MASTER, JSON.stringify(masterData)); }
+function saveLocalHistory(){ localStorage.setItem(KEY_HISTORY, JSON.stringify(updateHistory)); }
+function saveLocalRejection(){ localStorage.setItem(KEY_REJECTION, JSON.stringify(rejectionData)); }
+
 
 // ============================================================
 // LOOKUP HELPERS
@@ -1289,13 +1393,44 @@ document.addEventListener('click', function(e){
   if(!e.target.closest('#updateSuggestions') && !e.target.closest('#updatePressInput')) updateSuggDiv.style.display='none';
 });
 
-function logFieldChange(d, field, oldVal, newVal){
-  if(String(oldVal)===String(newVal)) return;
-  updateHistory.push({
-    date:new Date().toISOString().slice(0,10),
-    time:new Date().toTimeString().slice(0,8),
-    hall:d.hall, press:d.press, field, oldValue:oldVal||'-', newValue:newVal||'-'
-  });
+function savePressUpdate(updatedPress, changes){
+  if(FIREBASE_READY && db){
+    const batch=db.batch();
+    batch.set(db.collection('presses').doc(updatedPress.id), updatedPress);
+    changes.forEach(function(c){
+      const ref=db.collection('history').doc();
+      batch.set(ref, Object.assign({}, c, {
+        hall:updatedPress.hall, press:updatedPress.press,
+        date:new Date().toISOString().slice(0,10), time:new Date().toTimeString().slice(0,8),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      }));
+    });
+    batch.commit()
+      .then(function(){ toast('Press updated — synced to everyone', 'success'); })
+      .catch(function(err){ console.error(err); toast('Could not save — check your connection', 'error'); });
+  } else {
+    const idx=masterData.findIndex(function(p){ return p.id===updatedPress.id; });
+    if(idx>-1) masterData[idx]=updatedPress;
+    changes.forEach(function(c){
+      updateHistory.push(Object.assign({}, c, {
+        hall:updatedPress.hall, press:updatedPress.press,
+        date:new Date().toISOString().slice(0,10), time:new Date().toTimeString().slice(0,8)
+      }));
+    });
+    saveLocalMaster(); saveLocalHistory(); renderHistory();
+    toast('Press updated (saved on this device only)', 'success');
+  }
+}
+function diffPress(d, updated){
+  const changes=[];
+  function track(field, oldV, newV){ if(String(oldV)!==String(newV)) changes.push({field, oldValue:oldV||'-', newValue:newV||'-'}); }
+  track('Size (Upper)', d.sizeU, updated.sizeU);
+  track('Mould (Upper)', d.mouldU, updated.mouldU);
+  if(d.type==='double'){
+    track('Size (Lower)', d.sizeL, updated.sizeL);
+    track('Mould (Lower)', d.mouldL, updated.mouldL);
+  }
+  return changes;
 }
 document.getElementById('saveUpdateBtn').addEventListener('click', function(){
   const d=getById(currentUpdateId);
@@ -1303,20 +1438,13 @@ document.getElementById('saveUpdateBtn').addEventListener('click', function(){
   const newSizeU=document.getElementById('uSizeU').value.trim();
   const newMouldU=document.getElementById('uMouldU').value.trim();
   if(!newSizeU){ toast('Enter a size', 'error'); return; }
-
-  logFieldChange(d,'Size (Upper)', d.sizeU, newSizeU);
-  logFieldChange(d,'Mould (Upper)', d.mouldU, newMouldU);
-  d.sizeU=newSizeU; d.mouldU=newMouldU;
-
+  const updated=Object.assign({}, d, {sizeU:newSizeU, mouldU:newMouldU});
   if(d.type==='double'){
-    const newSizeL=document.getElementById('uSizeL').value.trim();
-    const newMouldL=document.getElementById('uMouldL').value.trim();
-    logFieldChange(d,'Size (Lower)', d.sizeL, newSizeL);
-    logFieldChange(d,'Mould (Lower)', d.mouldL, newMouldL);
-    d.sizeL=newSizeL; d.mouldL=newMouldL;
+    updated.sizeL=document.getElementById('uSizeL').value.trim();
+    updated.mouldL=document.getElementById('uMouldL').value.trim();
   }
-  saveMaster(); saveHistory(); renderHistory();
-  toast('Press updated successfully', 'success');
+  const changes=diffPress(d, updated);
+  savePressUpdate(updated, changes);
 });
 document.getElementById('resetPressBtn').addEventListener('click', function(){
   const d=getById(currentUpdateId);
@@ -1324,23 +1452,28 @@ document.getElementById('resetPressBtn').addEventListener('click', function(){
   if(!confirm('Reset '+d.hall+' Press '+d.press+' back to the original spreadsheet values?')) return;
   const seed=PRESS_DATA.find(s=>s.h===d.hall && s.p===d.press);
   if(!seed) return;
-  logFieldChange(d,'Size (Upper)', d.sizeU, seed.su);
-  logFieldChange(d,'Mould (Upper)', d.mouldU, seed.mu);
-  logFieldChange(d,'Size (Lower)', d.sizeL, seed.sl);
-  logFieldChange(d,'Mould (Lower)', d.mouldL, seed.ml);
-  d.sizeU=seed.su; d.mouldU=seed.mu; d.sizeL=seed.sl; d.mouldL=seed.ml;
-  saveMaster(); saveHistory(); renderHistory();
-  loadUpdatePress(d.hall, d.press);
-  toast('Press reset to original values', 'success');
+  const updated=Object.assign({}, d, {sizeU:seed.su, mouldU:seed.mu, sizeL:seed.sl, mouldL:seed.ml});
+  const changes=diffPress(d, updated);
+  savePressUpdate(updated, changes);
+  setTimeout(function(){ loadUpdatePress(d.hall, d.press); }, 400);
 });
 document.getElementById('resetAllBtn').addEventListener('click', function(){
   if(!confirm('This will discard ALL edits and restore every press to the original spreadsheet layout. Update history and rejection logs are kept. Continue?')) return;
-  masterData=seedMaster();
-  saveMaster();
-  refreshLayoutSizeOptions();
-  populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
-  toast('Entire layout reset to original data', 'success');
-  navigate('dashboard');
+  const seed=seedMaster();
+  if(FIREBASE_READY && db){
+    const batch=db.batch();
+    seed.forEach(function(p){ batch.set(db.collection('presses').doc(p.id), p); });
+    batch.commit()
+      .then(function(){ toast('Entire layout reset — synced to everyone', 'success'); navigate('dashboard'); })
+      .catch(function(err){ console.error(err); toast('Could not reset — check your connection', 'error'); });
+  } else {
+    masterData=seed;
+    saveLocalMaster();
+    refreshLayoutSizeOptions();
+    populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
+    toast('Entire layout reset to original data', 'success');
+    navigate('dashboard');
+  }
 });
 
 document.getElementById('backupDataBtn').addEventListener('click', function(){
@@ -1369,16 +1502,39 @@ restoreFileInput.addEventListener('change', function(e){
       if(!data || data.type!=='mms-backup' || !Array.isArray(data.masterData)){
         toast('This doesn\'t look like a valid backup file', 'error'); return;
       }
-      if(!confirm('Restore this backup? Your current data on this device will be replaced.')) return;
-      masterData=data.masterData;
-      updateHistory=Array.isArray(data.updateHistory)?data.updateHistory:[];
-      rejectionData=Array.isArray(data.rejectionData)?data.rejectionData:[];
-      rejectionData.forEach(entry=>{ if(!entry.id) entry.id=Date.now()+'-'+Math.random().toString(36).slice(2,8); });
-      saveMaster(); saveHistory(); saveRejection();
-      refreshLayoutSizeOptions();
-      populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
-      toast('Backup restored successfully', 'success');
-      navigate('dashboard');
+      if(FIREBASE_READY && db){
+        if(!confirm('Restore this backup? This will overwrite the SHARED data everyone sees. Continue?')) return;
+        db.collection('presses').get().then(function(snap){
+          const b=db.batch();
+          snap.docs.forEach(function(doc){ b.delete(doc.ref); });
+          data.masterData.forEach(function(p){ b.set(db.collection('presses').doc(p.id), p); });
+          return b.commit();
+        }).then(function(){
+          const b2=db.batch();
+          (data.updateHistory||[]).forEach(function(h){
+            b2.set(db.collection('history').doc(), Object.assign({}, h, {createdAt: firebase.firestore.FieldValue.serverTimestamp()}));
+          });
+          (data.rejectionData||[]).forEach(function(r){
+            const r2=Object.assign({}, r); delete r2.id;
+            b2.set(db.collection('rejections').doc(), Object.assign({}, r2, {createdAt: firebase.firestore.FieldValue.serverTimestamp()}));
+          });
+          return b2.commit();
+        }).then(function(){
+          toast('Backup restored to the shared database', 'success');
+          navigate('dashboard');
+        }).catch(function(err){ console.error(err); toast('Restore failed — check your connection', 'error'); });
+      } else {
+        if(!confirm('Restore this backup? Your current data on this device will be replaced.')) return;
+        masterData=data.masterData;
+        updateHistory=Array.isArray(data.updateHistory)?data.updateHistory:[];
+        rejectionData=Array.isArray(data.rejectionData)?data.rejectionData:[];
+        rejectionData.forEach(entry=>{ if(!entry.id) entry.id=genId(); });
+        saveLocalMaster(); saveLocalHistory(); saveLocalRejection();
+        refreshLayoutSizeOptions();
+        populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
+        toast('Backup restored successfully', 'success');
+        navigate('dashboard');
+      }
     }catch(err){ toast('Could not read this backup file', 'error'); }
   };
   reader.readAsText(file);
@@ -1471,15 +1627,22 @@ document.getElementById('saveRejBtn').addEventListener('click', function(){
   const lowerRej=d.type==='double' ? (parseInt(document.getElementById('rejLowerQty').value)||0) : 0;
   if(upperRej===0 && lowerRej===0){ if(!confirm('All values are zero. Save anyway?')) return; }
 
-  rejectionData.push({
-    id: Date.now()+'-'+Math.random().toString(36).slice(2,8),
+  const entry={
     date, shift, hall:d.hall, line:d.line, press:d.press, type:d.type,
     sizeU:d.sizeU, sizeL:d.sizeL, upperMould:d.mouldU, lowerMould:d.mouldL,
     upperRej, lowerRej
-  });
-  saveRejection();
-  toast('Rejection saved', 'success');
-  renderDashboard(); renderRejLog();
+  };
+  if(FIREBASE_READY && db){
+    db.collection('rejections').add(Object.assign({}, entry, {createdAt: firebase.firestore.FieldValue.serverTimestamp()}))
+      .then(function(){ toast('Rejection saved — synced to everyone', 'success'); })
+      .catch(function(err){ console.error(err); toast('Could not save — check your connection', 'error'); });
+  } else {
+    entry.id=genId();
+    rejectionData.push(entry);
+    saveLocalRejection();
+    renderDashboard(); renderRejLog();
+    toast('Rejection saved (this device only)', 'success');
+  }
   document.getElementById('rejUpperQty').value=0;
   document.getElementById('rejLowerQty').value=0;
 });
@@ -1487,10 +1650,16 @@ function deleteRejectionEntry(id){
   const entry=rejectionData.find(r=>r.id===id);
   if(!entry) return;
   if(!confirm('Delete this rejection entry — '+entry.hall+' Press '+entry.press+' on '+entry.date+'?')) return;
-  rejectionData=rejectionData.filter(r=>r.id!==id);
-  saveRejection();
-  renderDashboard(); renderRejLog();
-  toast('Rejection entry deleted', 'success');
+  if(FIREBASE_READY && db){
+    db.collection('rejections').doc(id).delete()
+      .then(function(){ toast('Rejection entry deleted', 'success'); })
+      .catch(function(err){ console.error(err); toast('Could not delete — check your connection', 'error'); });
+  } else {
+    rejectionData=rejectionData.filter(r=>r.id!==id);
+    saveLocalRejection();
+    renderDashboard(); renderRejLog();
+    toast('Rejection entry deleted', 'success');
+  }
 }
 function renderRejLog(){
   const tbody=document.querySelector('#rejLogTable tbody');
@@ -1794,10 +1963,30 @@ function importExcel(data){
     // de-duplicate by id, keep first occurrence
     const seen=new Set(); const deduped=[];
     newData.forEach(d=>{ if(!seen.has(d.id)){ seen.add(d.id); deduped.push(d); } });
-
-    if(deduped.length){ masterData=deduped; saveMaster(); return deduped.length; }
-    return 0;
-  }catch(e){ console.error('Import error:', e); return -1; }
+    return deduped;
+  }catch(e){ console.error('Import error:', e); return null; }
+}
+function applyImportedLayout(deduped){
+  if(FIREBASE_READY && db){
+    db.collection('presses').get().then(function(snap){
+      const batch=db.batch();
+      snap.docs.forEach(function(doc){ batch.delete(doc.ref); });
+      deduped.forEach(function(p){ batch.set(db.collection('presses').doc(p.id), p); });
+      return batch.commit();
+    }).then(function(){
+      toast('Imported '+deduped.length+' presses — synced to everyone', 'success');
+      refreshLayoutSizeOptions();
+      populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
+      renderDashboard(); navigate('dashboard');
+    }).catch(function(err){ console.error(err); toast('Import failed — check your connection', 'error'); });
+  } else {
+    masterData=deduped;
+    saveLocalMaster();
+    refreshLayoutSizeOptions();
+    populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
+    toast('Imported '+deduped.length+' presses successfully', 'success');
+    renderDashboard(); navigate('dashboard');
+  }
 }
 
 const fileInput=document.createElement('input');
@@ -1808,15 +1997,10 @@ fileInput.addEventListener('change', function(e){
   if(!file) return;
   const reader=new FileReader();
   reader.onload=function(ev){
-    const count=importExcel(new Uint8Array(ev.target.result));
-    if(count>0){
-      toast('Imported '+count+' presses successfully', 'success');
-      refreshLayoutSizeOptions();
-      populateSizeSelect(searchSizeFilter, getDistinctSizes('', ''), false);
-      renderDashboard(); navigate('dashboard');
-    }
-    else if(count===0) toast('No press rows found — check the sheet matches the Hall/Line layout format', 'error');
-    else toast('Could not read this file', 'error');
+    const result=importExcel(new Uint8Array(ev.target.result));
+    if(result===null){ toast('Could not read this file', 'error'); return; }
+    if(!result.length){ toast('No press rows found — check the sheet matches the Hall/Line layout format', 'error'); return; }
+    applyImportedLayout(result);
   };
   reader.readAsArrayBuffer(file);
   fileInput.value='';
