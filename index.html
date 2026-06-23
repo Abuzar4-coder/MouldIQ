@@ -46,7 +46,8 @@ body.dark::before,body.dark::after{opacity:.16;}
 .dark .topbar-title .grad{background:linear-gradient(135deg,#60a5fa,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .topbar-title small{font-weight:600;font-size:.7rem;opacity:.55;white-space:nowrap;}
 .topbar-spacer{flex:1;}
-.conn-badge{display:flex;align-items:center;gap:.4rem;font-size:.68rem;font-weight:600;opacity:.75;padding:.3rem .6rem;border-radius:30px;background:rgba(0,0,0,.04);white-space:nowrap;}
+.conn-badge{display:flex;align-items:center;gap:.4rem;font-size:.68rem;font-weight:600;opacity:.85;padding:.3rem .6rem;border-radius:14px;background:rgba(0,0,0,.04);max-width:150px;}
+.conn-badge #connText{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .dark .conn-badge{background:rgba(255,255,255,.06);}
 .conn-dot{width:7px;height:7px;border-radius:50%;background:#94a3b8;transition:background .3s;box-shadow:0 0 0 0 rgba(0,0,0,0);animation:connPulse 2s ease-in-out infinite;}
 @keyframes connPulse{0%,100%{opacity:1;}50%{opacity:.4;}}
@@ -791,18 +792,19 @@ const firebaseConfig = {
 const FIREBASE_READY = !!(firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith('PASTE'));
 let db=null;
 
-function setConnStatus(status){
+function setConnStatus(status, detail){
   const dot=document.getElementById('connDot'), text=document.getElementById('connText');
   if(!dot||!text) return;
   const map={
     local:   {color:'#94a3b8', label:'Local only'},
     connecting:{color:'#f59e0b', label:'Connecting…'},
     online:  {color:'#16a34a', label:'Live · Synced'},
-    error:   {color:'#dc2626', label:'Connection error'}
+    error:   {color:'#dc2626', label:'Error: '+(detail||'unknown')}
   };
   const s=map[status]||map.local;
   dot.style.background=s.color;
   text.textContent=s.label;
+  document.getElementById('connBadge').title = detail || s.label;
 }
 
 function initFirebaseSync(){
@@ -812,13 +814,15 @@ function initFirebaseSync(){
   db.enablePersistence({synchronizeTabs:true}).catch(function(){});
   firebase.auth().signInAnonymously().catch(function(err){
     console.error('Firebase auth failed', err);
-    setConnStatus('error');
-    toast('Could not connect to shared database — check your Firebase setup', 'error');
+    setConnStatus('error', 'auth/'+(err.code||err.message||'failed'));
+    toast('Auth error: '+(err.code||err.message), 'error');
   });
   firebase.auth().onAuthStateChanged(function(user){
     if(!user) return;
     seedFirestoreIfEmpty().then(attachFirestoreListeners).catch(function(err){
-      console.error(err); setConnStatus('error');
+      console.error(err);
+      setConnStatus('error', 'db/'+(err.code||err.message||'failed'));
+      toast('Database error: '+(err.code||err.message), 'error');
     });
   });
 }
@@ -836,19 +840,19 @@ function attachFirestoreListeners(){
     saveLocalMaster();
     setConnStatus('online');
     refreshAfterSync();
-  }, function(err){ console.error(err); setConnStatus('error'); });
+  }, function(err){ console.error(err); setConnStatus('error', 'presses/'+(err.code||err.message)); });
 
   db.collection('rejections').orderBy('createdAt','desc').onSnapshot(function(snap){
     rejectionData=snap.docs.map(function(d){ const v=d.data(); v.id=d.id; return v; });
     saveLocalRejection();
     refreshAfterSync();
-  }, function(err){ console.error(err); });
+  }, function(err){ console.error(err); setConnStatus('error', 'rejections/'+(err.code||err.message)); });
 
   db.collection('history').orderBy('createdAt','desc').onSnapshot(function(snap){
     updateHistory=snap.docs.map(function(d){ return d.data(); });
     saveLocalHistory();
     refreshAfterSync();
-  }, function(err){ console.error(err); });
+  }, function(err){ console.error(err); setConnStatus('error', 'history/'+(err.code||err.message)); });
 }
 function refreshAfterSync(){
   const active=document.querySelector('.page.active');
